@@ -32,15 +32,20 @@ Las seis se resolvieron por la opción recomendada.
 | 0.1 Rotar la clave de Groq | ⛔ **Bloqueada** — sin acceso a la consola de Groq. **Es la única mitigación real del incidente** |
 | 0.2 Default de debug a `0` | ✅ Hecha |
 | 0.3 Comunicar al equipo | ⬜ Pendiente |
-| 1.1 Versionar el código | ⬜ Pendiente (requiere confirmar el commit) |
-| 1.2 Purgar los zips del historial | ⬜ Pendiente (requiere confirmar el force-push) |
+| 1.1 Versionar el código | ✅ Hecha — rama `vllanten`, commit `b20282c` |
+| 1.2 Purgar los zips del historial | ⚠️ **Reabierta** — ver nota |
 | 1.3 Blindar el `.gitignore` | ✅ Hecha |
 | 1.4 Piso de calidad (ruff + pytest + CI) | ✅ Hecha — `ruff check` limpio, 4 tests en verde |
 
-> **Sobre 0.1 y 1.2.** Purgar el historial **no** protege la clave: lleva pública desde el commit
-> `e4cf47e` y hay que darla por comprometida. GitHub además conserva los objetos huérfanos accesibles
-> por SHA tras un force-push, salvo purga explícita del soporte. La 1.2 es limpieza de peso muerto;
-> la mitigación es la 0.1.
+> **Sobre 0.1 y 1.2.** El trabajo se aisló en la rama `vllanten` para no forzar un re-clone al equipo.
+> Eso resuelve la 1.1 pero **no** la 1.2: los zips viven en `e4cf47e`, ancestro de `main` y de
+> `vllanten`, así que el blob con el `.env` sigue en la historia. La rama solo los saca del árbol de
+> aquí en adelante. Purgarlos de verdad exige reescribir `main`, con el re-clone que se quería evitar
+> — decisión a tomar al mergear.
+>
+> En cualquier caso, purgar el historial **no** protege la clave: lleva pública desde `e4cf47e` y hay
+> que darla por comprometida. GitHub además conserva los objetos huérfanos accesibles por SHA tras un
+> force-push, salvo purga explícita del soporte. La única mitigación es la **0.1**.
 
 ---
 
