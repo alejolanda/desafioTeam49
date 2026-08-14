@@ -1,0 +1,98 @@
+{
+  "_nota": "Valores en Watts (W). Son promedios de referencia; el usuario puede ajustarlos si conoce el consumo real de su equipo (viene en una etiqueta o en el manual).",
+  "electrodomesticos": {
+    "cargador_celular": {"watts_uso": 5, "watts_standby": 0.5, "nombre": "Cargador de celular"},
+    "cargador_tablet": {"watts_uso": 10, "watts_standby": 0.5, "nombre": "Cargador de tablet"},
+    "cargador_notebook": {"watts_uso": 65, "watts_standby": 1.5, "nombre": "Cargador de notebook"},
+    "decodificador_tv": {"watts_uso": 15, "watts_standby": 12, "nombre": "Decodificador / modem TV"},
+    "computador_escritorio": {"watts_uso": 150, "watts_standby": 2, "nombre": "Computador de escritorio"},
+    "television": {"watts_uso": 100, "watts_standby": 1, "nombre": "Televisor"},
+    "router_wifi": {"watts_uso": 8, "watts_standby": 8, "nombre": "Router WiFi (siempre encendido)"},
+    "refrigerador": {"watts_uso": 150, "watts_standby": 150, "nombre": "Refrigerador (consumo promedio, funciona 24/7 por ciclos)"},
+    "congeladora": {"watts_uso": 200, "watts_standby": 200, "nombre": "Congeladora / freezer (consumo promedio, funciona 24/7 por ciclos)"},
+    "microondas": {"watts_uso": 1200, "watts_standby": 3, "nombre": "Microondas"},
+    "porton_electrico": {"watts_uso": 300, "watts_standby": 2, "nombre": "Motor de portón eléctrico"},
+    "campana_extractora": {"watts_uso": 120, "watts_standby": 0, "nombre": "Campana extractora de cocina"},
+    "camara_seguridad": {"watts_uso": 6, "watts_standby": 6, "nombre": "Cámara de seguridad (por unidad, funciona 24/7)"},
+    "dvr_nvr": {"watts_uso": 15, "watts_standby": 15, "nombre": "Grabador DVR/NVR de cámaras (funciona 24/7)"},
+    "cuchillo_electrico": {"watts_uso": 100, "watts_standby": 0, "nombre": "Cuchillo eléctrico"},
+    "exprimidor_electrico": {"watts_uso": 150, "watts_standby": 0, "nombre": "Exprimidor eléctrico"},
+    "abrelatas_electrico": {"watts_uso": 60, "watts_standby": 0, "nombre": "Abrelatas eléctrico"},
+    "licuadora": {"watts_uso": 300, "watts_standby": 0, "nombre": "Licuadora"},
+    "tostadora": {"watts_uso": 800, "watts_standby": 0, "nombre": "Tostadora"},
+    "plancha_ropa": {"watts_uso": 1000, "watts_standby": 0, "nombre": "Plancha de ropa"},
+    "secador_pelo": {"watts_uso": 1200, "watts_standby": 0, "nombre": "Secador de pelo"},
+    "aspiradora": {"watts_uso": 1400, "watts_standby": 0, "nombre": "Aspiradora"},
+    "lavadora": {"watts_uso": 500, "watts_standby": 0, "nombre": "Lavadora de ropa"},
+    "secadora_ropa": {"watts_uso": 2500, "watts_standby": 0, "nombre": "Secadora de ropa"},
+    "horno_electrico": {"watts_uso": 2000, "watts_standby": 0, "nombre": "Horno eléctrico"},
+    "olla_arrocera": {"watts_uso": 700, "watts_standby": 5, "nombre": "Olla arrocera"},
+    "cafetera_electrica": {"watts_uso": 800, "watts_standby": 2, "nombre": "Cafetera eléctrica"},
+    "ventilador": {"watts_uso": 50, "watts_standby": 0, "nombre": "Ventilador"},
+    "calefactor_electrico": {"watts_uso": 1500, "watts_standby": 0, "nombre": "Calefactor eléctrico"}
+  },
+  "iluminacion": {
+    "incandescente_60w": {"watts": 60, "nombre": "Ampolleta incandescente (equiv. ~800 lumen)"},
+    "led_equivalente": {"watts": 9, "nombre": "Ampolleta LED (equiv. ~800 lumen)"}
+  },
+  "tipos_iluminacion": {
+    "incandescente": {"watts": 60, "nombre": "Incandescente"},
+    "led": {"watts": 9, "nombre": "LED"},
+    "fluorescente_tubo": {"watts": 36, "nombre": "Tubo fluorescente (T8, ~1.2m)"},
+    "fluorescente_ahorro": {"watts": 15, "nombre": "Ahorradora / fluorescente compacta (CFL)"},
+    "halogena": {"watts": 42, "nombre": "Halógena (equivalente a incandescente ~60W)"},
+    "neon_exterior": {"watts": 20, "nombre": "Tubo/letrero de neón exterior"},
+    "halogeno": {"watts": 42, "nombre": "Halógena (equiv. ~800 lumen)"}
+  },
+  "agua_caliente": {
+    "hervidor_electrico_watts": 1800,
+    "eficiencia_hervidor": 0.90,
+    "capacidad_estandar_litros": 1.7,
+    "calor_especifico_agua_j_kg_c": 4186,
+    "temp_inicial_c": 20,
+    "temp_final_c": 100
+  },
+  "tarifa": {
+    "clp_por_kwh": 150,
+    "_nota": "Valor referencial. El usuario debería reemplazarlo por el precio real de su boleta (kWh) para mayor exactitud."
+  },
+  "paises": {
+    "_nota": "Valores REFERENCIALES de partida (2024-2025), no verificados en tiempo real. El usuario debe confirmar el valor vigente en la fuente oficial de su país y/o reemplazarlo por el de su propia boleta.",
+    "CL": {"nombre": "Chile", "moneda": "CLP", "simbolo": "$", "tarifa_kwh_referencial": 150, "fuente": "Comisión Nacional de Energía (CNE) - cne.cl"},
+    "AR": {"nombre": "Argentina", "moneda": "ARS", "simbolo": "$", "tarifa_kwh_referencial": 85, "fuente": "ENRE - argentina.gob.ar/enre"},
+    "PE": {"nombre": "Perú", "moneda": "PEN", "simbolo": "S/", "tarifa_kwh_referencial": 0.62, "fuente": "OSINERGMIN - osinergmin.gob.pe"},
+    "CO": {"nombre": "Colombia", "moneda": "COP", "simbolo": "$", "tarifa_kwh_referencial": 820, "fuente": "CREG - creg.gov.co"},
+    "MX": {"nombre": "México", "moneda": "MXN", "simbolo": "$", "tarifa_kwh_referencial": 1.20, "fuente": "CFE - cfe.mx"},
+    "ES": {"nombre": "España", "moneda": "EUR", "simbolo": "€", "tarifa_kwh_referencial": 0.27, "fuente": "CNMC - cnmc.es"},
+    "BR": {"nombre": "Brasil", "moneda": "BRL", "simbolo": "R$", "tarifa_kwh_referencial": 0.75, "fuente": "ANEEL - aneel.gov.br"},
+    "EC": {"nombre": "Ecuador", "moneda": "USD", "simbolo": "$", "tarifa_kwh_referencial": 0.10, "fuente": "ARCONEL - regulacionelectrica.gob.ec"},
+    "UY": {"nombre": "Uruguay", "moneda": "UYU", "simbolo": "$U", "tarifa_kwh_referencial": 8.50, "fuente": "UTE - ute.com.uy"},
+    "VE": {"nombre": "Venezuela", "moneda": "VES", "simbolo": "Bs.", "tarifa_kwh_referencial": 0.01, "fuente": "CORPOELEC - corpoelec.gob.ve"},
+    "BO": {"nombre": "Bolivia", "moneda": "BOB", "simbolo": "Bs.", "tarifa_kwh_referencial": 0.60, "fuente": "AETN - aetn.gob.bo"},
+    "PY": {"nombre": "Paraguay", "moneda": "PYG", "simbolo": "₲", "tarifa_kwh_referencial": 185, "fuente": "ANDE - ande.gov.py"},
+    "GT": {"nombre": "Guatemala", "moneda": "GTQ", "simbolo": "Q", "tarifa_kwh_referencial": 1.70, "fuente": "CNEE - cnee.gob.gt"},
+    "CR": {"nombre": "Costa Rica", "moneda": "CRC", "simbolo": "₡", "tarifa_kwh_referencial": 145, "fuente": "ARESEP - aresep.go.cr"},
+    "PA": {"nombre": "Panamá", "moneda": "USD", "simbolo": "$", "tarifa_kwh_referencial": 0.17, "fuente": "ASEP - asep.gob.pa"},
+    "DO": {"nombre": "Rep. Dominicana", "moneda": "DOP", "simbolo": "RD$", "tarifa_kwh_referencial": 12.50, "fuente": "SIE - sie.gob.do"},
+    "US": {"nombre": "Estados Unidos", "moneda": "USD", "simbolo": "$", "tarifa_kwh_referencial": 0.16, "fuente": "EIA - eia.gov"}
+  },
+  "categorias_comparables": {
+    "_nota": "Catálogo DE EJEMPLO para el comparador de artefactos. Los precios y modelos son placeholders — reemplázalos por datos reales de retailers antes de usar en producción, o conecta una API de shopping/scraping propia.",
+    "aspiradora": {
+      "unidad_precio": "referencial, completar",
+      "opciones": [
+        {"nombre": "Modelo básico (ejemplo)", "watts": 1400, "precio_referencial": null},
+        {"nombre": "Modelo eficiente (ejemplo)", "watts": 700, "precio_referencial": null},
+        {"nombre": "Modelo inverter/alta eficiencia (ejemplo)", "watts": 450, "precio_referencial": null}
+      ]
+    },
+    "aire_acondicionado": {
+      "unidad_precio": "referencial, completar",
+      "opciones": [
+        {"nombre": "9000 BTU estándar (ejemplo)", "watts": 900, "precio_referencial": null},
+        {"nombre": "9000 BTU inverter (ejemplo)", "watts": 650, "precio_referencial": null},
+        {"nombre": "12000 BTU inverter (ejemplo)", "watts": 850, "precio_referencial": null}
+      ]
+    }
+  }
+}

@@ -1,0 +1,1276 @@
+/* ═══════════════════════════════════════════════════════════
+   VólticvS — style.css v8.0  |  CORRECCIONES PRESENTACIÓN
+   Paleta Oficial: EQUIPO VOLTI
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. VARIABLES ─────────────────────────────────────────── */
+:root {
+  /* Paleta oficial */
+  --verde:        #009E73;
+  --verde-dark:   #007a59;
+  --azul:         #2F80ED;
+  --azul-oscuro:  #1E3A5F;
+  --amarillo:     #FFC83D;
+  --naranja:      #F2994A;
+  --hueso:        #F8F9F4;
+  --carbon:       #333333;
+  --gris:         #D9D9D9;
+  --white:        #FFFFFF;
+  --error:        #E53E3E;
+
+  /* Pasteles para icon badges */
+  --p-verde:   #E0F5EE;
+  --p-azul:    #E8F1FD;
+  --p-naranja: #FDF0E6;
+  --p-gris:    #F0F2F5;
+
+  /* Sombras */
+  --s-sm: 0 2px 4px rgba(30,58,95,.06);
+  --s-md: 0 4px 12px rgba(30,58,95,.09);
+  --s-lg: 0 8px 24px rgba(30,58,95,.13);
+  --s-glow: 0 0 18px rgba(0,158,115,.28);
+
+  /* Fuente: Atkinson Hyperlegible */
+  --font: "Atkinson Hyperlegible", "Inter", sans-serif;
+
+  /* Radios */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-full: 9999px;
+
+  /* Animaciones */
+  --ease:   cubic-bezier(0.4, 0, 0.2, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── 2. RESET ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font);
+  background: var(--hueso);
+  color: var(--carbon);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+img { display: block; max-width: 100%; }
+button { font-family: var(--font); cursor: pointer; }
+select, input { font-family: var(--font); }
+
+/* ── 3. HEADER ─────────────────────────────────────────────── */
+.header {
+  background: var(--azul-oscuro);
+  border-bottom: 3px solid var(--verde);
+  padding: 0.85rem 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--s-md);
+}
+
+.header__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.header__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.header__logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center top;
+  border: 2.5px solid rgba(255,255,255,.35);
+  transition: transform 0.3s var(--spring);
+  flex-shrink: 0;
+}
+
+.header__logo:hover { transform: scale(1.08) rotate(-4deg); }
+
+.header__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--white);
+  letter-spacing: -0.02em;
+}
+
+.header__tagline {
+  font-size: 0.82rem;
+  color: rgba(255,255,255,.65);
+}
+
+/* ── 4. LAYOUT ─────────────────────────────────────────────── */
+.main-layout {
+  display: flex;
+  gap: 1.5rem;
+  max-width: 1100px;
+  margin: 1.5rem auto;
+  padding: 0 1.25rem 2rem;
+  align-items: flex-start;
+}
+
+/* ── 5. VOLTI PANEL ────────────────────────────────────────── */
+.volti-panel {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  position: sticky;
+  top: 5rem;
+}
+
+/* Marco del avatar */
+.volti-frame {
+  width: 150px;
+  height: 150px;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: var(--white);
+  border: 2.5px solid var(--azul);
+  box-shadow: var(--s-lg);
+  flex-shrink: 0;
+  transition: transform 0.3s var(--spring), box-shadow 0.3s;
+}
+
+.volti-frame:hover {
+  transform: scale(1.04);
+  box-shadow: var(--s-glow);
+}
+
+/* Imagen de Volti (PNG individual) */
+.volti-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  transition: opacity 0.25s var(--ease);
+}
+
+/* Animación al cambiar de expresión */
+.volti-frame.pop {
+  animation: avatar-pop 0.4s var(--spring);
+}
+
+@keyframes avatar-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.1) rotate(2deg); }
+  70%  { transform: scale(0.97) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* Burbuja de diálogo */
+.volti-speech { width: 100%; }
+
+.volti-bubble {
+  position: relative;
+  background: var(--white);
+  border: 2px solid var(--azul);
+  border-radius: var(--r-md);
+  padding: 0.85rem 1rem;
+  box-shadow: var(--s-md);
+  font-size: 0.83rem;
+  line-height: 1.55;
+  color: var(--carbon);
+}
+
+.volti-bubble::before {
+  content: "";
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 14px;
+  height: 14px;
+  background: var(--white);
+  border-left: 2px solid var(--azul);
+  border-top: 2px solid var(--azul);
+}
+
+/* Animación de la burbuja al cambiar mensaje */
+.volti-bubble.pulse {
+  animation: bubble-pulse 0.45s var(--ease);
+}
+
+@keyframes bubble-pulse {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.03); }
+  60%  { transform: scale(0.99); }
+  100% { transform: scale(1); }
+}
+
+.volti-mood {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--azul);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 0.4rem;
+}
+
+/* ── 6. WIZARD ─────────────────────────────────────────────── */
+.wizard { flex: 1; min-width: 0; }
+
+/* Progress bar */
+.progress-bar { margin-bottom: 1.25rem; }
+
+.progress-bar__track {
+  height: 5px;
+  background: var(--gris);
+  border-radius: var(--r-full);
+  overflow: hidden;
+  margin-bottom: 0.85rem;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--verde), var(--azul));
+  border-radius: var(--r-full);
+  width: 0%;
+  transition: width 0.5s var(--ease);
+}
+
+.progress-bar__steps {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.2s;
+  flex: 1;
+}
+
+.progress-step--active,
+.progress-step--done { opacity: 1; }
+
+.progress-step__circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--gris);
+  color: var(--carbon);
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s, color 0.3s, transform 0.25s var(--spring);
+}
+
+.progress-step--active .progress-step__circle {
+  background: var(--azul);
+  color: var(--white);
+  transform: scale(1.1);
+}
+
+.progress-step--done .progress-step__circle {
+  background: var(--verde);
+  color: var(--white);
+}
+
+.progress-step__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--azul-oscuro);
+}
+
+/* ── 7. STEPS — Transición suave entre pasos ─────────────── */
+.wizard-step {
+  display: none;
+  animation: step-in 0.35s var(--ease);
+}
+
+.wizard-step--active { display: block; }
+
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 8. STEP CARDS ─────────────────────────────────────────── */
+.step-card {
+  background: var(--white);
+  border: 1px solid var(--gris);
+  border-radius: var(--r-lg);
+  box-shadow: var(--s-md);
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.step-card:hover { box-shadow: var(--s-lg); }
+
+.step-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1.2rem 1.6rem;
+  background: var(--hueso);
+  border-bottom: 1px solid var(--gris);
+  position: relative;
+}
+
+/* Icon badge en encabezados */
+.step-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  background: var(--p-azul);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s var(--spring);
+}
+
+.step-card:hover .step-icon-badge { transform: scale(1.06); }
+
+.step-icon-badge i {
+  width: 22px;
+  height: 22px;
+  color: var(--azul);
+  stroke-width: 2;
+}
+
+.step-card__title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--azul-oscuro);
+}
+
+.step-card__desc {
+  font-size: 0.82rem;
+  color: var(--carbon);
+  opacity: 0.85;
+}
+
+.step-card__badge {
+  position: absolute;
+  right: 1.4rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--azul-oscuro);
+  background: var(--amarillo);
+  padding: 0.22rem 0.6rem;
+  border-radius: var(--r-full);
+}
+
+.step-card__body { padding: 1.6rem; }
+
+.step-card__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.6rem;
+  background: var(--hueso);
+  border-top: 1px solid var(--gris);
+}
+
+/* ── 9. FORMULARIOS ────────────────────────────────────────── */
+.form-group { margin-bottom: 1.2rem; }
+.form-group:last-child { margin-bottom: 0; }
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--azul-oscuro);
+  margin-bottom: 0.45rem;
+}
+
+/* Icon badge en labels */
+.label-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--p-verde);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.label-badge--blue { background: var(--p-azul); }
+.label-badge--orange { background: var(--p-naranja); }
+
+.label-badge i {
+  width: 15px;
+  height: 15px;
+  color: var(--verde);
+  stroke-width: 2.2;
+}
+
+.label-badge--blue i { color: var(--azul); }
+.label-badge--orange i { color: var(--naranja); }
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 0.65rem 0.9rem;
+  background: var(--white);
+  border: 1.5px solid var(--gris);
+  border-radius: var(--r-sm);
+  color: var(--carbon);
+  font-size: 0.9rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+.form-input:focus,
+.form-select:focus {
+  border-color: var(--azul);
+  box-shadow: 0 0 0 3px rgba(47,128,237,.13);
+}
+
+.input-error {
+  border: 2px solid #DC2626 !important;
+  background: #FEF2F2 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+}
+
+.error-msg {
+  color: #DC2626;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-top: 0.35rem;
+  display: block;
+  animation: step-in 0.2s ease;
+}
+
+/* Animación de error (Shake) */
+.shake {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translate3d(-2px, 0, 0); }
+  20%, 80% { transform: translate3d(4px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+  40%, 60% { transform: translate3d(6px, 0, 0); }
+}
+
+.form-hint {
+  font-size: 0.76rem;
+  color: var(--carbon);
+  opacity: 0.7;
+  margin-top: 0.28rem;
+  display: block;
+}
+
+.form-grid { display: grid; gap: 1.2rem; }
+.form-grid--2col { grid-template-columns: 1fr 1fr; }
+
+/* ── 10. VIVIENDA CARDS ────────────────────────────────────── */
+.vivienda-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.85rem;
+  margin-top: 0.4rem;
+}
+
+.vivienda-card {
+  border: 2px solid var(--gris);
+  border-radius: var(--r-md);
+  padding: 0.7rem;
+  text-align: center;
+  cursor: pointer;
+  background: var(--white);
+  transition: all 0.25s var(--ease);
+  user-select: none;
+  overflow: hidden;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.vivienda-card:hover {
+  border-color: var(--azul);
+  transform: translateY(-2px);
+  box-shadow: var(--s-sm);
+}
+
+.vivienda-card--active {
+  border-color: var(--verde);
+  background: rgba(0,158,115,.05);
+  box-shadow: 0 0 0 2px var(--verde);
+}
+
+.vivienda-card__img {
+  width: 100%;
+  height: 80px;
+  object-fit: contain;
+  object-position: center;
+  image-rendering: pixelated;
+  border-radius: var(--r-sm);
+  margin: 0 auto 0.4rem;
+  background: transparent;
+  mix-blend-mode: normal;
+  flex-shrink: 0;
+}
+
+.vivienda-card__title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--azul-oscuro);
+  line-height: 1.25;
+}
+
+/* ── 11. COUNTER INPUT ─────────────────────────────────────── */
+.counter-input {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+}
+
+.counter-btn {
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--gris);
+  background: var(--hueso);
+  color: var(--azul-oscuro);
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.counter-btn:hover {
+  background: var(--verde);
+  color: var(--white);
+  border-color: var(--verde);
+}
+
+.counter-btn:active { transform: scale(0.94); }
+
+.counter-btn--minus { border-radius: var(--r-sm) 0 0 var(--r-sm); border-right: none; }
+.counter-btn--plus  { border-radius: 0 var(--r-sm) var(--r-sm) 0; border-left: none; }
+
+.counter-value {
+  width: 52px;
+  height: 36px;
+  text-align: center;
+  border-top: 2px solid var(--gris);
+  border-bottom: 2px solid var(--gris);
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--azul-oscuro);
+  background: var(--white);
+  padding: 0;
+  -moz-appearance: textfield;
+}
+
+.counter-value::-webkit-outer-spin-button,
+.counter-value::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ── 12. TOGGLE SWITCH ─────────────────────────────────────── */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+.toggle-switch__slider {
+  position: absolute;
+  inset: 0;
+  background: var(--gris);
+  border-radius: var(--r-full);
+  transition: background 0.3s;
+}
+
+.toggle-switch__slider::before {
+  content: "";
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 20px; height: 20px;
+  background: var(--white);
+  border-radius: 50%;
+  transition: transform 0.3s var(--spring);
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+
+.toggle-switch input:checked + .toggle-switch__slider { background: var(--verde); }
+.toggle-switch input:checked + .toggle-switch__slider::before { transform: translateX(24px); }
+
+/* Toggle row */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.toggle-row__label {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--azul-oscuro);
+}
+
+/* ── 13. EQUIPMENT ITEMS ───────────────────────────────────── */
+.equip-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 0.95rem;
+  border: 1.5px solid var(--gris);
+  border-radius: var(--r-md);
+  margin-bottom: 0.55rem;
+  background: var(--white);
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+  cursor: default;
+}
+
+.equip-item:hover {
+  border-color: var(--azul);
+  transform: translateX(2px);
+}
+
+.equip-item--on {
+  border-color: var(--verde);
+  background: rgba(0,158,115,.04);
+}
+
+.equip-item__info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Icon badge para equipamiento */
+.equip-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s var(--spring);
+}
+
+.equip-item:hover .equip-badge { transform: scale(1.08); }
+
+.equip-badge--verde   { background: var(--p-verde); }
+.equip-badge--azul    { background: var(--p-azul);  }
+.equip-badge--naranja { background: var(--p-naranja); }
+.equip-badge--gris    { background: var(--p-gris); }
+
+.equip-badge i {
+  width: 21px;
+  height: 21px;
+  stroke-width: 2;
+}
+
+.equip-badge--verde   i { color: var(--verde); }
+.equip-badge--azul    i { color: var(--azul); }
+.equip-badge--naranja i { color: var(--naranja); }
+
+.equip-item__name {
+  font-weight: 600;
+  font-size: 0.87rem;
+  color: var(--azul-oscuro);
+  display: block;
+}
+
+.equip-item__desc {
+  font-size: 0.74rem;
+  color: var(--carbon);
+  opacity: 0.7;
+}
+
+/* ── 14. BOTONES ───────────────────────────────────────────── */
+.btn {
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0.65rem 1.4rem;
+  border-radius: var(--r-sm);
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: all 0.2s var(--ease);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn i { width: 16px; height: 16px; stroke-width: 2.5; flex-shrink: 0; }
+
+/* Principal — verde */
+.btn--primary {
+  background: var(--verde);
+  color: var(--white);
+  box-shadow: var(--s-sm);
+}
+
+.btn--primary:hover {
+  background: var(--verde-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--s-md);
+}
+
+.btn--primary:active { transform: translateY(0); }
+
+/* Secundario — outline */
+.btn--secondary {
+  background: transparent;
+  color: var(--azul-oscuro);
+  border: 2px solid var(--gris);
+}
+
+.btn--secondary:hover {
+  border-color: var(--azul-oscuro);
+  background: rgba(30,58,95,.05);
+}
+
+/* Calcular — destacado */
+.btn--submit {
+  background: var(--verde);
+  color: var(--white);
+  font-size: 0.95rem;
+  padding: 0.8rem 1.75rem;
+  border-radius: var(--r-md);
+  box-shadow: var(--s-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn--submit::after {
+  content: "";
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: 0.5s;
+}
+
+.btn--submit:hover::after {
+  left: 100%;
+  transition: 0.5s;
+}
+
+.btn--submit:hover {
+  background: var(--verde-dark);
+  transform: translateY(-2px);
+  box-shadow: var(--s-lg);
+}
+
+/* Tech — azul */
+.btn--tech {
+  background: var(--azul);
+  color: var(--white);
+  box-shadow: var(--s-sm);
+}
+
+.btn--tech:hover {
+  background: #1a6bd1;
+  transform: translateY(-1px);
+}
+
+/* ── 15. RESULTADOS ────────────────────────────────────────── */
+.results-section { animation: step-in 0.4s var(--ease); }
+
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.85rem;
+  margin: 1.1rem 0;
+}
+
+.results-card {
+  background: var(--white);
+  border: 1.5px solid var(--gris);
+  border-radius: var(--r-md);
+  padding: 1.2rem;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.results-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--s-md);
+}
+
+.results-card--success {
+  border-color: var(--verde);
+  background: rgba(0,158,115,.06);
+}
+
+.results-card__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--carbon);
+  opacity: 0.75;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.results-card__value {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--azul-oscuro);
+}
+
+.results-card__value--success { color: var(--verde); }
+
+.results-recs {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.results-recs li {
+  padding: 0.7rem 1rem;
+  background: var(--hueso);
+  border-left: 4px solid var(--verde);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+/* ── Métricas de resumen (3 bullets) ────────────────────────────────── */
+.results-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 1.2rem;
+  padding: 0.15rem 0;
+}
+
+.results-metric-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.8rem 1.1rem;
+  background: var(--hueso);
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--gris);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.results-metric-item:hover {
+  box-shadow: var(--s-sm);
+  transform: translateX(3px);
+}
+
+.results-metric-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.results-metric-img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+}
+
+.results-metric-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.results-metric-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--carbon);
+  opacity: 0.65;
+}
+
+.results-metric-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--azul-oscuro);
+  line-height: 1.35;
+}
+
+.results-metric-value--green {
+  color: var(--verde);
+}
+
+.results-metric-value--action {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--azul);
+  line-height: 1.4;
+}
+
+/* ── 16. FOOTER ────────────────────────────────────────────── */
+.footer {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--carbon);
+  font-size: 0.78rem;
+  border-top: 1px solid var(--gris);
+  background: var(--white);
+  opacity: 0.8;
+}
+
+/* ── 17. RESPONSIVE ────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .main-layout {
+    flex-direction: column;
+  }
+
+  .volti-panel {
+    width: 100%;
+    flex-direction: row;
+    position: static;
+    align-items: flex-start;
+  }
+
+  .volti-frame {
+    width: 100px;
+    height: 100px;
+    border-radius: var(--r-lg);
+    flex-shrink: 0;
+  }
+
+  .volti-speech { flex: 1; }
+
+  .volti-bubble::before {
+    top: 50%;
+    left: -9px;
+    transform: translateY(-50%) rotate(-45deg);
+  }
+
+  .header__logo { width: 40px; height: 40px; }
+}
+
+@media (max-width: 600px) {
+  .form-grid--2col { grid-template-columns: 1fr; }
+  .step-card__nav { flex-direction: column; gap: 0.65rem; }
+  .step-card__nav .btn { width: 100%; justify-content: center; }
+  .step-card__badge { position: static; margin-left: auto; }
+  .progress-step__label { font-size: 0.62rem; }
+  .volti-frame { width: 88px; height: 88px; }
+}
+
+/* ── 18. PRINT — Boleta / Factura Energética A4 ─────────────────── */
+
+/* Ocultar el bloque de factura en pantalla normal */
+#factura-print-template {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #1E3A5F !important;
+    font-size: 12pt;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-family: "Atkinson Hyperlegible", Arial, sans-serif !important;
+  }
+
+  /* Ocultar elementos de la interfaz web */
+  header, .header, .sidebar-volti, .volti-panel, aside, .step-wizard, .wizard, .form-step, .wizard-step, .progress-bar, #wizardContainer, .results-section, #resultados, button, .no-print, nav, .footer, footer {
+    display: none !important;
+  }
+
+  /* Expandir contenedor principal a ancho completo */
+  #resultados-panel, .resultados-container, #factura-print-template {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Encabezado superior de la factura */
+  .fpt-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 8mm;
+    border-bottom: 3pt solid #009E73;
+    margin-bottom: 6mm;
+  }
+
+  .fpt-header__brand {
+    display: flex !important;
+    align-items: center;
+    gap: 4mm;
+  }
+
+  .fpt-logo {
+    width: 56pt !important;
+    height: 56pt !important;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 2pt solid #009E73;
+  }
+
+  .fpt-brand-name {
+    font-size: 18pt !important;
+    font-weight: 700;
+    color: #1E3A5F !important;
+    margin: 0;
+  }
+
+  .fpt-brand-tagline {
+    font-size: 9pt !important;
+    color: #666 !important;
+    margin: 2pt 0 0;
+  }
+
+  .fpt-folio-box {
+    text-align: right;
+    border: 1pt solid #D9D9D9;
+    border-radius: 4pt;
+    padding: 4mm 6mm;
+  }
+
+  .fpt-client-bar {
+    display: flex !important;
+    gap: 6mm;
+    flex-wrap: wrap;
+    background: #F0F2F5 !important;
+    border: 1pt solid #D9D9D9;
+    border-radius: 4pt;
+    padding: 3mm 5mm;
+    margin-bottom: 6mm;
+    font-size: 9pt;
+  }
+
+  .fpt-section {
+    margin-bottom: 6mm;
+    page-break-inside: avoid;
+  }
+
+  .fpt-section-title {
+    font-size: 10pt !important;
+    font-weight: 700;
+    color: #1E3A5F !important;
+    margin: 0 0 3mm;
+    padding-bottom: 1.5mm;
+    border-bottom: 1.5pt solid #D9D9D9;
+  }
+
+  .fpt-table {
+    width: 100% !important;
+    border-collapse: collapse;
+    font-size: 9pt;
+  }
+
+  .fpt-table th,
+  .fpt-table td {
+    padding: 2.5mm 3.5mm;
+    border: 1pt solid #D9D9D9;
+  }
+
+  .fpt-table--desglose thead tr {
+    background: #1E3A5F !important;
+  }
+
+  .fpt-table--desglose thead th {
+    color: #fff !important;
+    font-weight: 700;
+  }
+
+  /* Disposición horizontal de tarjetas de resumen */
+  .cards-grid, .metric-cards, .fpt-totals-grid, .results-grid {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    width: 100% !important;
+    margin-bottom: 20px !important;
+  }
+
+  .fpt-total-card {
+    flex: 1;
+    border: 1.5pt solid #D9D9D9;
+    border-radius: 6pt;
+    padding: 3mm 4mm;
+  }
+
+  .fpt-total-label {
+    display: block;
+    font-size: 7.5pt !important;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #666 !important;
+    margin-bottom: 2pt;
+  }
+
+  .fpt-total-value {
+    display: block;
+    font-size: 13pt !important;
+    font-weight: 700;
+    color: #1E3A5F !important;
+  }
+
+  /* Recomendaciones a ancho completo (sin aplastar a la izquierda) */
+  .recomendaciones-container, .recomendaciones-list, .fpt-footer, .fpt-footer__recs, .fpt-recs-list {
+    width: 100% !important;
+    display: block !important;
+    float: none !important;
+    clear: both !important;
+  }
+
+  .recomendacion-card, .recomendacion-item, .fpt-recs-list li {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin-bottom: 8px !important;
+    padding: 3mm 4mm !important;
+    page-break-inside: avoid;
+    background-color: #F8F9F4 !important;
+    border-left: 4px solid #009E73 !important;
+    font-size: 8.5pt !important;
+  }
+
+  .fpt-footer__firma {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 4mm;
+    margin-top: 5mm;
+    padding-top: 3mm;
+    border-top: 1pt dashed #D9D9D9;
+    width: 100%;
+  }
+
+  .fpt-firma-logo {
+    width: 32pt !important;
+    height: 32pt !important;
+    border-radius: 50%;
+    border: 1.5pt solid #009E73;
+  }
+  .fpt-firma-text {
+    font-size: 8pt !important;
+    color: #1E3A5F !important;
+    text-align: left;
+  }
+
+  .fpt-firma-text strong {
+    font-size: 9pt !important;
+    display: block;
+    margin-bottom: 1pt;
+  }
+
+  .fpt-disclaimer {
+    font-size: 7pt !important;
+    color: #999 !important;
+    margin-top: 2pt;
+  }
+
+  .fpt-folio-label {
+    font-size: 7pt !important;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #666 !important;
+    letter-spacing: 0.04em;
+  }
+
+  .fpt-folio-num {
+    font-size: 11pt !important;
+    font-weight: 700;
+    color: #1E3A5F !important;
+    margin: 1pt 0;
+  }
+
+  .fpt-folio-date {
+    font-size: 7.5pt !important;
+    color: #666 !important;
+  }
+
+  /* Evitar corte entre firma y recomendaciones */
+  .fpt-footer {
+    page-break-inside: avoid;
+    margin-top: 5mm;
+  }
+
+  .fpt-footer__recs-title {
+    font-size: 9pt !important;
+    font-weight: 700;
+    color: #1E3A5F !important;
+    margin-bottom: 2mm;
+  }
+
+  /* Estado activo en tabla de desglose */
+  .fpt-estado-activo {
+    background: #E0F5EE !important;
+    color: #007a59 !important;
+    padding: 1pt 4pt;
+    border-radius: 3pt;
+    font-size: 7.5pt;
+    font-weight: 700;
+  }
+
+  /* Forzar que las tarjetas de totales queden alineadas a la izquierda */
+  .fpt-total-card--categoria .fpt-total-value { color: #2F80ED !important; }
+  .fpt-total-card--costo .fpt-total-value     { color: #F2994A !important; }
+  .fpt-total-card--ahorro .fpt-total-value    { color: #009E73 !important; }
+
+}/* end @media print */
+
+/* ── 19. UTILIDAD: no-print (pantalla y print) ─────────────── */
+/* Solo aplica en pantalla; el @media print ya lo oculta con display:none */
+
+/* ── 20. ERROR STATES (consolidado) ─────────────────────────── */
+.error-message {
+  color: #DC2626;
+  font-size: 0.8rem;
+  margin-top: 4px;
+}

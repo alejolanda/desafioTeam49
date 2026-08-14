@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VólticvS — Asesor Energético Inteligente</title>
+  <meta name="description"
+    content="Calcula tu consumo eléctrico y descubre cuánto puedes ahorrar con VólticvS, tu asesor energético inteligente.">
+
+  <!-- Fuente: Atkinson Hyperlegible -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body id="app">
+
+  <!-- ════ HEADER ════ -->
+  <header class="header" id="appHeader">
+    <div class="header__inner">
+      <div class="header__brand">
+        <img src="/static/img/icono_2.png" alt="VólticvS Logo" class="header-logo-img header__logo" id="headerLogo">
+        <h1 class="header__title">VólticvS</h1>
+      </div>
+      <p class="header__tagline">Tu asesor energético inteligente</p>
+    </div>
+  </header>
+
+  <!-- ════ MAIN LAYOUT ════ -->
+  <main class="main-layout">
+
+    <!-- ── PANEL LATERAL: VOLTI ── -->
+    <aside class="volti-panel no-print" id="voltiPanel">
+
+      <!-- Marco enmascarador + avatar PNG individual -->
+      <div class="volti-frame" id="voltiFrame">
+        <img src="/static/img/volti/impatado.png" alt="Volti — Asesor Energético" class="volti-avatar-img"
+          id="voltiAvatarImg">
+      </div>
+
+      <!-- Burbuja de diálogo -->
+      <div class="volti-speech" id="voltiSpeech">
+        <div class="volti-bubble" id="voltiBubble">
+          <span class="volti-bubble__text" id="voltiBubbleText">
+            ¡Hola! Soy <strong>Volti</strong>, tu asesor energético. Te guiaré paso a paso para calcular tu consumo.
+          </span>
+        </div>
+        <div class="volti-mood" id="voltiMood">Saludando</div>
+      </div>
+
+    </aside>
+
+    <!-- ── WIZARD ── -->
+    <section class="wizard" id="wizardContainer">
+
+      <!-- Barra de progreso -->
+      <div class="progress-bar no-print" id="progressBar">
+        <div class="progress-bar__track">
+          <div class="progress-bar__fill" id="progressFill"></div>
+        </div>
+        <div class="progress-bar__steps">
+          <button class="progress-step progress-step--active" data-step="1" id="progStep1">
+            <span class="progress-step__circle">1</span>
+            <span class="progress-step__label">Ubicación</span>
+          </button>
+          <button class="progress-step" data-step="2" id="progStep2">
+            <span class="progress-step__circle">2</span>
+            <span class="progress-step__label">Vivienda</span>
+          </button>
+          <button class="progress-step" data-step="3" id="progStep3">
+            <span class="progress-step__circle">3</span>
+            <span class="progress-step__label">Equipamiento</span>
+          </button>
+          <button class="progress-step" data-step="4" id="progStep4">
+            <span class="progress-step__circle">4</span>
+            <span class="progress-step__label">Rutinas</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ════ PASO 1: Ubicación & Tarifa ════ -->
+      <div class="wizard-step wizard-step--active" id="step1" data-step="1">
+        <div class="step-card">
+          <div class="step-card__header">
+            <span class="step-icon-badge">
+              <i data-lucide="map-pin"></i>
+            </span>
+            <div>
+              <h2 class="step-card__title">Ubicación &amp; Tarifa</h2>
+              <p class="step-card__desc">Indica dónde resides e ingresa tu consumo si lo conoces.</p>
+            </div>
+            <span class="step-card__badge">Paso 1 de 4</span>
+          </div>
+
+          <div class="step-card__body">
+
+            <div class="form-group">
+              <label class="form-label" for="pais">
+                <span class="label-badge"><i data-lucide="globe"></i></span>
+                País
+              </label>
+              <select class="form-select" id="pais" required>
+                <option value="">Cargando países…</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="selectProvincia">
+                <span class="label-badge"><i data-lucide="map"></i></span>
+                Provincia / Estado / Región
+              </label>
+              <input type="text" class="form-input" id="selectProvincia"
+                placeholder="Ej: Santiago, Buenos Aires, CDMX…">
+              <span class="form-hint">Ayuda a estimar variaciones de clima local.</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputConsumo">
+                <span class="label-badge"><i data-lucide="zap"></i></span>
+                Consumo eléctrico mensual (kWh)
+              </label>
+              <input type="number" class="form-input" id="inputConsumo" min="0"
+                placeholder="Ej: 250  —  déjalo vacío para que Volti lo calcule">
+            </div>
+
+            <div class="form-group">
+              <div class="toggle-row">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="flagAnual" checked>
+                  <span class="toggle-switch__slider"></span>
+                </label>
+                <span class="toggle-row__label" id="flagAnualLabel">El consumo es anual</span>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="step-card__nav no-print">
+            <div></div>
+            <button class="btn btn--primary" id="btnNext1" type="button">
+              Siguiente <i data-lucide="arrow-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ PASO 2: Mi Vivienda ════ -->
+      <div class="wizard-step" id="step2" data-step="2">
+        <div class="step-card">
+          <div class="step-card__header">
+            <span class="step-icon-badge">
+              <i data-lucide="home"></i>
+            </span>
+            <div>
+              <h2 class="step-card__title">Mi Vivienda</h2>
+              <p class="step-card__desc">Selecciona tu tipo de hogar y estructura familiar.</p>
+            </div>
+            <span class="step-card__badge">Paso 2 de 4</span>
+          </div>
+
+          <div class="step-card__body">
+
+            <!-- Tarjetas Pixel Art — ÚNICO uso de imagen en formulario -->
+            <div class="form-group">
+              <label class="form-label">Tipo de Inmueble</label>
+              <div class="vivienda-grid">
+                <div class="vivienda-card vivienda-card--active" data-value="Casa" id="cardCasa">
+                  <img src="/static/img/casa.png" alt="Casa" class="vivienda-card__img">
+                  <div class="vivienda-card__title">Casa</div>
+                </div>
+                <div class="vivienda-card" data-value="Departamento" id="cardDpto">
+                  <img src="/static/img/casa.png" alt="Departamento / Piso" class="vivienda-card__img">
+                  <div class="vivienda-card__title">Departamento / Piso</div>
+                </div>
+                <div class="vivienda-card" data-value="Motorhome" id="cardRV">
+                  <img src="/static/img/vivienda_motorhome.jpg" alt="Casilla / Casa Rodante / RV" class="vivienda-card__img">
+                  <div class="vivienda-card__title">Casilla / Casa Rodante / RV</div>
+                </div>
+                <div class="vivienda-card" data-value="Otro" id="cardOtro">
+                  <img src="/static/img/vivienda_casas.jpg" alt="Otro" class="vivienda-card__img">
+                  <div class="vivienda-card__title">Otro</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-grid form-grid--2col">
+
+              <div class="form-group">
+                <label class="form-label" for="inputDormitorios">
+                  <span class="label-badge label-badge--blue"><i data-lucide="bed-double"></i></span>
+                  Dormitorios
+                </label>
+                <div class="counter-input">
+                  <button type="button" class="counter-btn counter-btn--minus" data-target="inputDormitorios">−</button>
+                  <input type="number" class="form-input counter-value" id="inputDormitorios" min="0" value="0">
+                  <button type="button" class="counter-btn counter-btn--plus" data-target="inputDormitorios">+</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="inputVentanas">
+                  <span class="label-badge label-badge--blue"><i data-lucide="square"></i></span>
+                  Ventanas
+                </label>
+                <div class="counter-input">
+                  <button type="button" class="counter-btn counter-btn--minus" data-target="inputVentanas">−</button>
+                  <input type="number" class="form-input counter-value" id="inputVentanas" min="0" value="0">
+                  <button type="button" class="counter-btn counter-btn--plus" data-target="inputVentanas">+</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="inputMayores">
+                  <span class="label-badge"><i data-lucide="user"></i></span>
+                  Adultos
+                </label>
+                <div class="counter-input">
+                  <button type="button" class="counter-btn counter-btn--minus" data-target="inputMayores">−</button>
+                  <input type="number" class="form-input counter-value" id="inputMayores" min="0" value="0">
+                  <button type="button" class="counter-btn counter-btn--plus" data-target="inputMayores">+</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="inputMenores">
+                  <span class="label-badge"><i data-lucide="baby"></i></span>
+                  Menores
+                </label>
+                <div class="counter-input">
+                  <button type="button" class="counter-btn counter-btn--minus" data-target="inputMenores">−</button>
+                  <input type="number" class="form-input counter-value" id="inputMenores" min="0" value="0">
+                  <button type="button" class="counter-btn counter-btn--plus" data-target="inputMenores">+</button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="step-card__nav no-print">
+            <button class="btn btn--secondary" id="btnPrev2" type="button">
+              <i data-lucide="arrow-left"></i> Anterior
+            </button>
+            <button class="btn btn--primary" id="btnNext2" type="button">
+              Siguiente <i data-lucide="arrow-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ PASO 3: Equipamiento ════ -->
+      <div class="wizard-step" id="step3" data-step="3">
+        <div class="step-card">
+          <div class="step-card__header">
+            <span class="step-icon-badge">
+              <i data-lucide="plug"></i>
+            </span>
+            <div>
+              <h2 class="step-card__title">Equipamiento Principal</h2>
+              <p class="step-card__desc">Indica cuáles de estos artefactos utilizas en tu hogar.</p>
+            </div>
+            <span class="step-card__badge">Paso 3 de 4</span>
+          </div>
+
+          <div class="step-card__body">
+
+            <div class="equip-item" id="equipAC">
+              <div class="equip-item__info">
+                <span class="equip-badge equip-badge--azul"><i data-lucide="wind"></i></span>
+                <div>
+                  <span class="equip-item__name">Aire Acondicionado / Climatización</span>
+                  <span class="equip-item__desc">Equipos de refrigeración o calefacción eléctrica</span>
+                </div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="aireAcondicionado" class="equip-toggle">
+                <span class="toggle-switch__slider"></span>
+              </label>
+            </div>
+
+            <div class="equip-item" id="equipCalef">
+              <div class="equip-item__info">
+                <span class="equip-badge equip-badge--naranja"><i data-lucide="flame"></i></span>
+                <div>
+                  <span class="equip-item__name">Calefacción Eléctrica</span>
+                  <span class="equip-item__desc">Estufas, radiadores, calefactores</span>
+                </div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="calefaccionElectrica" class="equip-toggle">
+                <span class="toggle-switch__slider"></span>
+              </label>
+            </div>
+
+            <div class="equip-item" id="equipAgua">
+              <div class="equip-item__info">
+                <span class="equip-badge equip-badge--verde"><i data-lucide="droplets"></i></span>
+                <div>
+                  <span class="equip-item__name">Calentador de Agua / Termotanque (Eléctrico)</span>
+                  <span class="equip-item__desc">Uso de electricidad para calentar agua</span>
+                </div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="aguaCalienteElectrica" class="equip-toggle">
+                <span class="toggle-switch__slider"></span>
+              </label>
+            </div>
+
+            <div class="equip-item" id="equipSeca">
+              <div class="equip-item__info">
+                <span class="equip-badge equip-badge--azul"><i data-lucide="rotate-ccw"></i></span>
+                <div>
+                  <span class="equip-item__name">Secarropas Eléctrico</span>
+                  <span class="equip-item__desc">Secado de prendas</span>
+                </div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="secarropasElectrico" class="equip-toggle">
+                <span class="toggle-switch__slider"></span>
+              </label>
+            </div>
+
+            <div class="equip-item" id="equipHorno">
+              <div class="equip-item__info">
+                <span class="equip-badge equip-badge--verde"><i data-lucide="chef-hat"></i></span>
+                <div>
+                  <span class="equip-item__name">Horno o Anafe Eléctrico</span>
+                  <span class="equip-item__desc">Cocción eléctrica</span>
+                </div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="hornoElectrico" class="equip-toggle">
+                <span class="toggle-switch__slider"></span>
+              </label>
+            </div>
+
+          </div>
+
+          <div class="step-card__nav no-print">
+            <button class="btn btn--secondary" id="btnPrev3" type="button">
+              <i data-lucide="arrow-left"></i> Anterior
+            </button>
+            <button class="btn btn--primary" id="btnNext3" type="button">
+              Siguiente <i data-lucide="arrow-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ PASO 4: Rutinas ════ -->
+      <div class="wizard-step" id="step4" data-step="4">
+        <div class="step-card">
+          <div class="step-card__header">
+            <span class="step-icon-badge">
+              <i data-lucide="clock"></i>
+            </span>
+            <div>
+              <h2 class="step-card__title">Electrodomésticos &amp; Rutinas</h2>
+              <p class="step-card__desc">Indica la frecuencia de uso diario y semanal.</p>
+            </div>
+            <span class="step-card__badge">Paso 4 de 4</span>
+          </div>
+
+          <div class="step-card__body">
+            <div class="form-grid form-grid--2col">
+
+              <div class="form-group">
+                <label class="form-label" for="lavadoFrecuencia">
+                  <span class="label-badge"><i data-lucide="shirt"></i></span>
+                  Lavados semanales
+                </label>
+                <div class="counter-input">
+                  <button type="button" class="counter-btn counter-btn--minus" data-target="lavadoFrecuencia">−</button>
+                  <input type="number" class="form-input counter-value" id="lavadoFrecuencia" min="0" value="0">
+                  <button type="button" class="counter-btn counter-btn--plus" data-target="lavadoFrecuencia">+</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="refrigerador">
+                  <span class="label-badge label-badge--blue"><i data-lucide="refrigerator"></i></span>
+                  Refrigerador / Heladera
+                </label>
+                <div class="counter-input">
+                  <button type="button" class="counter-btn counter-btn--minus" data-target="refrigerador">−</button>
+                  <input type="number" class="form-input counter-value" id="refrigerador" min="0" value="0">
+                  <button type="button" class="counter-btn counter-btn--plus" data-target="refrigerador">+</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="freezer">
+                  <span class="label-badge label-badge--blue"><i data-lucide="snowflake"></i></span>
+                  Freezer independiente
+                </label>
+                <div class="counter-input">
+                  <button type="button" class="counter-btn counter-btn--minus" data-target="freezer">−</button>
+                  <input type="number" class="form-input counter-value" id="freezer" min="0" value="0">
+                  <button type="button" class="counter-btn counter-btn--plus" data-target="freezer">+</button>
+                </div>
+                <span class="form-hint" style="font-size: 0.75rem; color: #6B7280; margin-top: 0.25rem; display: block;">Congelador separado del refrigerador</span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="tv">
+                  <span class="label-badge label-badge--blue"><i data-lucide="tv-2"></i></span>
+                  Televisores
+                </label>
+                <div class="counter-input">
+                  <button type="button" class="counter-btn counter-btn--minus" data-target="tv">−</button>
+                  <input type="number" class="form-input counter-value" id="tv" min="0" value="0">
+                  <button type="button" class="counter-btn counter-btn--plus" data-target="tv">+</button>
+                </div>
+              </div>
+
+            </div>
+
+            <div class="form-group" style="margin-top: 1rem;">
+              <label class="form-label" for="tvFrecuencia">
+                <span class="label-badge label-badge--blue"><i data-lucide="timer"></i></span>
+                Horas promedio de uso diario de TV
+              </label>
+              <input type="number" class="form-input" id="tvFrecuencia" min="0" max="24" value="0" step="0.5" placeholder="Ej: 4">
+              <span class="form-hint">Ingresa las horas de uso al día por televisor.</span>
+            </div>
+          </div>
+
+          <div class="step-card__nav no-print">
+            <button class="btn btn--secondary" id="btnPrev4" type="button">
+              <i data-lucide="arrow-left"></i> Anterior
+            </button>
+            <button class="btn btn--submit" id="btnSubmit" type="button">
+              <i data-lucide="bar-chart-2"></i>
+              Calcular Consumo y Ahorro
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ RESULTADOS ════ -->
+      <div class="results-section" id="resultados" hidden>
+        <div class="step-card">
+          <div class="step-card__header">
+            <span class="step-icon-badge">
+              <i data-lucide="bar-chart-2"></i>
+            </span>
+            <div>
+              <h2 class="step-card__title">Análisis de Consumo</h2>
+              <p class="step-card__desc">Proyección estimada por Volti para tu hogar</p>
+            </div>
+          </div>
+
+          <div class="step-card__body">
+
+            <!-- Métricas destacadas (reemplaza el párrafo de narrativa) -->
+            <div class="results-metrics" id="resultados-metricas">
+              <div class="results-metric-item">
+                <span class="results-metric-icon">
+                  <img src="/static/img/ampolleta_led.png" alt="Consumo" class="results-metric-img">
+                </span>
+                <div class="results-metric-body">
+                  <span class="results-metric-label">Consumo Mensual</span>
+                  <span class="results-metric-value" id="metricaKwh">— kWh</span>
+                </div>
+              </div>
+              <div class="results-metric-item">
+                <span class="results-metric-icon">
+                  <img src="/static/img/bateria.png" alt="Ahorro" class="results-metric-img">
+                </span>
+                <div class="results-metric-body">
+                  <span class="results-metric-label">Ahorro Estimado a 1 año</span>
+                  <span class="results-metric-value results-metric-value--green" id="metricaAhorro">—</span>
+                </div>
+              </div>
+              <div class="results-metric-item">
+                <span class="results-metric-icon">
+                  <img src="/static/img/checklist.png" alt="Acción" class="results-metric-img">
+                </span>
+                <div class="results-metric-body">
+                  <span class="results-metric-label">Acción Principal</span>
+                  <span class="results-metric-value results-metric-value--action" id="metricaAccion">—</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Narrativa del LLM: oculta en pantalla, disponible para la factura -->
+            <div id="narrativa" hidden aria-hidden="true"></div>
+
+
+            <div class="results-grid">
+              <div class="results-card">
+                <span class="results-card__label">Consumo Mensual</span>
+                <div class="results-card__value" id="totalKwh">— kWh</div>
+              </div>
+              <div class="results-card">
+                <span class="results-card__label">Costo Estimado</span>
+                <div class="results-card__value" id="totalClp">—</div>
+              </div>
+              <div class="results-card results-card--success">
+                <span class="results-card__label">Ahorro Potencial</span>
+                <div class="results-card__value results-card__value--success" id="ahorroClp">—</div>
+              </div>
+            </div>
+
+            <h3 style="color:var(--azul-oscuro);margin:1.4rem 0 0.6rem;font-size:0.95rem;display:flex;align-items:center;gap:0.4rem;">
+              <img src="/static/img/ampolleta_cfl.png" alt="Recomendaciones" style="width:22px;height:22px;image-rendering:pixelated;">
+              Recomendaciones de Volti
+            </h3>
+            <ul class="results-recs" id="listaRecomendaciones"></ul>
+
+            <div class="no-print" style="margin-top:1.75rem;display:flex;gap:0.85rem;flex-wrap:wrap;">
+              <button class="btn btn--primary" id="btnNuevoCalculo" type="button">
+                <i data-lucide="refresh-cw"></i> Nuevo Cálculo
+              </button>
+              <button class="btn btn--tech" id="btnImprimir" type="button">
+                <i data-lucide="printer"></i> Imprimir Reporte
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- ════ FACTURA ENERGÉTICA (solo visible en @media print) ════ -->
+  <div id="factura-print-template" aria-hidden="true">
+
+    <!-- ── ENCABEZADO DE FACTURA ── -->
+    <div class="fpt-header">
+      <div class="fpt-header__brand">
+        <img src="/static/img/icono_2.png" alt="VólticvS Logo" class="fpt-logo">
+        <div>
+          <h1 class="fpt-brand-name">VólticvS</h1>
+          <p class="fpt-brand-tagline">Tu asesor energético · Equipo Volti</p>
+        </div>
+      </div>
+      <div class="fpt-folio-box">
+        <div class="fpt-folio-label">REPORTE ENERGÉTICO</div>
+        <div class="fpt-folio-num" id="fptFolio">#VOLT-2026-0000</div>
+        <div class="fpt-folio-date" id="fptFecha">Fecha: —</div>
+      </div>
+    </div>
+
+    <!-- Barra de cliente/ubicación -->
+    <div class="fpt-client-bar">
+      <span>📍 País: <strong id="fptPais">—</strong></span>
+      <span>🗺️ Región / Provincia: <strong id="fptRegion">—</strong></span>
+      <span>🏠 Inmueble: <strong id="fptInmuebleBadge">—</strong></span>
+      <span>👥 Habitantes: <strong id="fptHabBadge">—</strong></span>
+    </div>
+
+    <!-- ── SECCIÓN 1: DATOS DEL INMUEBLE ── -->
+    <section class="fpt-section">
+      <h2 class="fpt-section-title">1 · Datos del Inmueble</h2>
+      <table class="fpt-table">
+        <tbody>
+          <tr>
+            <th>Tipo de Vivienda</th><td id="fptTipoVivienda">—</td>
+            <th>Dormitorios</th><td id="fptDormitorios">—</td>
+          </tr>
+          <tr>
+            <th>Ventanas</th><td id="fptVentanas">—</td>
+            <th>Adultos / Menores</th><td id="fptAdultosMenores">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── SECCIÓN 2: DESGLOSE DE CONSUMO Y EQUIPOS ── -->
+    <section class="fpt-section">
+      <h2 class="fpt-section-title">2 · Desglose de Consumo &amp; Equipamiento</h2>
+      <table class="fpt-table fpt-table--desglose">
+        <thead>
+          <tr>
+            <th class="fpt-col-concepto">Artefacto / Concepto</th>
+            <th class="fpt-col-cantidad">Cantidad / Frecuencia</th>
+            <th class="fpt-col-estado">Estado</th>
+          </tr>
+        </thead>
+        <tbody id="fptDesglose">
+          <!-- Filas generadas dinámicamente por JS -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── SECCIÓN 3: TOTALES Y DIAGNÓSTICO ── -->
+    <section class="fpt-section">
+      <h2 class="fpt-section-title">3 · Diagnóstico Energético</h2>
+      <div class="fpt-totals-grid">
+        <div class="fpt-total-card fpt-total-card--categoria">
+          <span class="fpt-total-label">Categoría Energética</span>
+          <span class="fpt-total-value" id="fptCategoria">—</span>
+        </div>
+        <div class="fpt-total-card">
+          <span class="fpt-total-label">Consumo Mensual Estimado</span>
+          <span class="fpt-total-value" id="fptKwh">— kWh</span>
+        </div>
+        <div class="fpt-total-card fpt-total-card--costo">
+          <span class="fpt-total-label">Costo Estimado</span>
+          <span class="fpt-total-value" id="fptCosto">—</span>
+        </div>
+        <div class="fpt-total-card fpt-total-card--ahorro">
+          <span class="fpt-total-label">Ahorro Potencial / Mes</span>
+          <span class="fpt-total-value" id="fptAhorro">—</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PIE DE PÁGINA / FIRMA INSTITUCIONAL ── -->
+    <div class="fpt-footer">
+      <div class="fpt-footer__recs">
+        <h3 class="fpt-footer__recs-title">💡 Recomendaciones de Volti</h3>
+        <ul class="fpt-recs-list" id="fptRecs"></ul>
+      </div>
+      <div class="fpt-footer__firma">
+        <img src="/static/img/icono_2.png" alt="Logo" class="fpt-firma-logo">
+        <div class="fpt-firma-text">
+          <strong>VólticvS — Equipo Volti</strong>
+          <p>VólticvS © 2026 — Equipo Volti</p>
+          <p class="fpt-disclaimer">Este reporte es orientativo. Los valores son estimaciones basadas en los datos ingresados por el usuario.</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#factura-print-template -->
+
+  <footer class="footer no-print">
+    <p>VólticvS © 2026 — Tu asesor energético inteligente · Equipo Volti</p>
+  </footer>
+
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/denji.js"></script>
+  <script>
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  </script>
+</body>
+
+</html>

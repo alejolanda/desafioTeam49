@@ -1,0 +1,31 @@
+# Entorno virtual y dependencias
+venv/
+.venv/
+env/
+
+# Archivos de configuración con claves secretas
+.env
+
+# Archivos temporales de Python y sistema
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+.pytest_cache/
+.DS_Store
+Thumbs.db
+
+# Boletas subidas temporalmente (datos privados del usuario)
+uploads/
+
+# Logs
+*.log
+
+# Empaquetados del proyecto: el codigo se versiona como codigo, no como blob.
+# El zip anterior filtro el .env con la clave de Groq (ver docs/PLAN.md, tarea 0.1).
+*.zip
+
+# Cobertura y artefactos de test
+.coverage
+htmlcov/
