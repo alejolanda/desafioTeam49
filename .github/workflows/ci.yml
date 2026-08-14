@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  calidad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Tests
+        run: pytest
+
+      # Cortafuegos del incidente que origino el plan: ningun secreto ni
+      # empaquetado vuelve a entrar al repositorio. Ver docs/PLAN.md, tarea 1.3.
+      - name: Verificar que no se versionen secretos ni zips
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$|\.zip$'; then
+            echo "::error::Se detecto un .env o un .zip versionado."
+            exit 1
+          fi

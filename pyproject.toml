@@ -1,0 +1,15 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+exclude = ["venv", ".venv", "uploads"]
+
+[tool.ruff.lint]
+# Arranque deliberadamente conservador: pyflakes (F) + los errores de
+# pycodestyle que senyalan bugs reales (E4/E7/E9), sin estilo.
+# El objetivo es que la CI arranque en verde y solo falle ante defectos.
+# Se endurece (I, UP, B) cuando el codigo este cubierto por tests — Fase 2.6.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
