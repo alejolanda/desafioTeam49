@@ -142,6 +142,30 @@ function showError(el, mensaje) {
   setTimeout(() => el.classList.remove('shake'), 400);
 }
 
+/**
+ * Aviso de error a nivel de página, para fallos que no pertenecen a ningún
+ * campo del formulario (la API no responde, se agotó el tiempo, 429…).
+ * Antes estos fallos solo cambiaban la cara del asistente: el usuario veía a
+ * Volti poner gesto de error sin saber qué había pasado ni qué hacer.
+ */
+function mostrarErrorGlobal(mensaje) {
+  let aviso = document.getElementById('avisoGlobal');
+  if (!aviso) {
+    aviso = document.createElement('div');
+    aviso.id = 'avisoGlobal';
+    aviso.className = 'aviso-global';
+    aviso.setAttribute('role', 'alert');
+    document.getElementById('btnSubmit')?.closest('.step-card')?.appendChild(aviso);
+  }
+  aviso.textContent = mensaje;
+  aviso.hidden = false;
+}
+
+function ocultarErrorGlobal() {
+  const aviso = document.getElementById('avisoGlobal');
+  if (aviso) aviso.hidden = true;
+}
+
 function validarPaso(pasoActual) {
   let valido = true;
   document.querySelector(`.wizard-step[data-step="${pasoActual}"]`)
@@ -180,7 +204,118 @@ document.querySelectorAll('.vivienda-card').forEach(card => {
     document.querySelectorAll('.vivienda-card').forEach(c => c.classList.remove('vivienda-card--active'));
     card.classList.add('vivienda-card--active');
     tipoInmuebleSeleccionado = card.dataset.value;
+
+    // El campo libre solo aparece con "Otro": es el único caso para el que se
+    // escribió /api/interpretar-campo.
+    const grupoOtro = document.getElementById('grupoInmuebleOtro');
+    if (grupoOtro) grupoOtro.hidden = card.dataset.value !== 'Otro';
   });
+});
+
+// ── Interpretación del tipo de inmueble descrito en texto libre ──────────────
+// Se dispara al salir del campo, no en cada tecla: una llamada al modelo por
+// texto ingresado, como dice el contrato del endpoint.
+let ultimoTextoInterpretado = '';
+
+document.getElementById('inputInmuebleOtro')?.addEventListener('blur', async (e) => {
+  const texto = e.target.value.trim();
+  const estado = document.getElementById('inmuebleOtroEstado');
+
+  if (!texto || texto === ultimoTextoInterpretado) return;
+  ultimoTextoInterpretado = texto;
+
+  if (estado) estado.textContent = 'Interpretando…';
+
+  try {
+    const res = await fetchConTimeout('/api/interpretar-campo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campo: 'tipo_inmueble', texto })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const { valor_mapeado } = await res.json();
+    tipoInmuebleSeleccionado = valor_mapeado;
+    if (estado) estado.textContent = `Lo clasificamos como: ${valor_mapeado}`;
+  } catch (error) {
+    console.error('No se pudo interpretar el tipo de inmueble:', error);
+    // Se conserva "Otro" como valor: es un miembro válido de la lista y no
+    // inventa una clasificación que el usuario no dio.
+    tipoInmuebleSeleccionado = 'Otro';
+    if (estado) estado.textContent = 'No pudimos interpretarlo; lo dejamos como "Otro".';
+  }
+});
+
+// ── 5B. SUBIDA DE BOLETA ────────────────────────────────────
+// El endpoint /api/subir-boleta existía desde el principio (pdfplumber, regex
+// y modelo de visión, ~145 líneas) pero no había forma de invocarlo: no
+// existía ningún <input type="file"> en toda la interfaz.
+document.getElementById('inputBoleta')?.addEventListener('change', async (e) => {
+  const archivo = e.target.files?.[0];
+  const estado = document.getElementById('boletaEstado');
+  if (!archivo || !estado) return;
+
+  const pintar = (texto, clase) => {
+    estado.hidden = false;
+    estado.textContent = texto;
+    estado.className = `boleta-estado boleta-estado--${clase}`;
+  };
+
+  pintar('Leyendo tu boleta…', 'cargando');
+  e.target.disabled = true;
+
+  const cuerpo = new FormData();
+  cuerpo.append('boleta', archivo);
+  cuerpo.append('pais', document.getElementById('pais')?.value || window._paisActivo || 'CL');
+
+  try {
+    // Más margen que el resto: implica subir el archivo y analizarlo.
+    const res = await fetchConTimeout('/api/subir-boleta', { method: 'POST', body: cuerpo }, 30000);
+    const datos = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      pintar(datos.error || 'No pudimos leer la boleta. Prueba con otra foto o ingresa el consumo a mano.', 'error');
+      return;
+    }
+
+    const partes = [];
+
+    if (datos.kwh_mes != null) {
+      const campoConsumo = document.getElementById('inputConsumo');
+      if (campoConsumo) campoConsumo.value = Math.round(datos.kwh_mes);
+
+      // Una boleta informa el período facturado, que es mensual: hay que
+      // desmarcar el interruptor de consumo anual o el backend lo dividiría por 12.
+      const flagAnual = document.getElementById('flagAnual');
+      if (flagAnual?.checked) {
+        flagAnual.checked = false;
+        flagAnual.dispatchEvent(new Event('change'));
+      }
+      partes.push(`consumo: ${Math.round(datos.kwh_mes)} kWh`);
+    }
+
+    if (datos.tarifa_kwh != null) {
+      window._tarifaBoleta = datos.tarifa_kwh;
+      partes.push(`tarifa: ${datos.simbolo || ''}${datos.tarifa_kwh} ${datos.moneda || ''}`.trim());
+    }
+
+    if (!partes.length) {
+      pintar('No encontramos el consumo en la boleta. Ingrésalo a mano más abajo.', 'error');
+      return;
+    }
+
+    const confianza = datos.confianza ? ` (confianza ${datos.confianza})` : '';
+    pintar(`Listo — ${partes.join(' · ')}${confianza}. Revisa que coincida con tu boleta.`, 'ok');
+  } catch (error) {
+    const esTimeout = error.name === 'AbortError';
+    console.error('Error al subir la boleta:', error);
+    pintar(esTimeout
+      ? 'La lectura está tardando demasiado. Ingresa el consumo a mano.'
+      : 'No pudimos conectar con el servidor. Ingresa el consumo a mano.', 'error');
+  } finally {
+    e.target.disabled = false;
+  }
 });
 
 document.querySelectorAll('.equip-toggle').forEach(toggle => {
@@ -209,7 +344,10 @@ async function cargarPaises() {
   const selectPais = document.getElementById('pais') || document.getElementById('selectPais');
   if (!selectPais) return;
   try {
-    const res   = await fetch('/api/paises');
+    // Con timeout: es la primera petición de la página y, sin tope, el selector
+    // se queda en "Cargando países…" indefinidamente si el servidor no responde.
+    const res = await fetchConTimeout('/api/paises', {}, 10000);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const paises = await res.json();
     _paisesCache = paises;
 
@@ -274,13 +412,24 @@ function resetearTodo() {
     if (_paisesCache) actualizarInfoPais(_paisesCache, PAIS_DEFAULT);
   }
 
-  // 5. Toggle anual en ON (flag_anual = 1) por defecto
+  // 5. Toggle de periodo en MENSUAL, que es lo que pide la etiqueta del campo
   const flagAnual = document.getElementById('flagAnual');
   if (flagAnual) {
-    flagAnual.checked = true;
+    flagAnual.checked = false;
     const flagAnualLabel = document.getElementById('flagAnualLabel');
-    if (flagAnualLabel) flagAnualLabel.textContent = 'El consumo es anual';
+    if (flagAnualLabel) flagAnualLabel.textContent = 'El consumo es mensual';
   }
+
+  // 5B. Limpiar todo lo relativo a la boleta subida
+  window._tarifaBoleta = null;
+  ultimoTextoInterpretado = '';
+  const inputBoleta = document.getElementById('inputBoleta');
+  if (inputBoleta) inputBoleta.value = '';
+  const boletaEstado = document.getElementById('boletaEstado');
+  if (boletaEstado) boletaEstado.hidden = true;
+  const grupoOtro = document.getElementById('grupoInmuebleOtro');
+  if (grupoOtro) grupoOtro.hidden = true;
+  ocultarErrorGlobal();
 
   // 6. TODOS los contadores a CERO
   Object.entries(COUNTER_ZEROS).forEach(([id, val]) => {
@@ -339,8 +488,42 @@ document.getElementById('flagAnual')?.addEventListener('change', e => {
 });
 
 // ── 8A. SUBMIT: CALCULAR CONSUMO ─────────────────────────────
-document.getElementById('btnSubmit')?.addEventListener('click', async () => {
+
+const TIMEOUT_PETICION_MS = 15000;
+
+/**
+ * fetch con tope de tiempo. Sin esto el navegador espera indefinidamente:
+ * si el backend tarda (o Groq se cuelga), el usuario se queda mirando un
+ * botón que no responde y sin ningún aviso.
+ */
+async function fetchConTimeout(url, opciones = {}, ms = TIMEOUT_PETICION_MS) {
+  const control = new AbortController();
+  const temporizador = setTimeout(() => control.abort(), ms);
+  try {
+    return await fetch(url, { ...opciones, signal: control.signal });
+  } finally {
+    clearTimeout(temporizador);
+  }
+}
+
+/** Extrae el mensaje de error del cuerpo JSON, con un respaldo legible. */
+async function mensajeDeError(res) {
+  try {
+    const cuerpo = await res.json();
+    if (cuerpo?.error) return cuerpo.error;
+  } catch { /* el cuerpo no era JSON */ }
+
+  if (res.status === 429) return 'Demasiadas consultas seguidas. Espera un momento e inténtalo de nuevo.';
+  return 'No pudimos completar el cálculo. Inténtalo de nuevo en unos segundos.';
+}
+
+document.getElementById('btnSubmit')?.addEventListener('click', async (evento) => {
   updateVoltiMessage('submit');
+
+  const boton = evento.currentTarget;
+  const textoOriginal = boton.innerHTML;
+  boton.disabled = true;
+  boton.innerHTML = 'Calculando…';
 
   const v = id => document.getElementById(id);
   const horasDiariasTv = parseFloat(v('tvFrecuencia')?.value) || 0;
@@ -372,34 +555,42 @@ document.getElementById('btnSubmit')?.addEventListener('click', async () => {
     tipo_inmueble:         tipoInmuebleSeleccionado
   };
 
+  // Tarifa leída de la boleta del usuario, si la subió. Es más exacta que la
+  // referencial del país, así que el backend le da prioridad.
+  if (window._tarifaBoleta) datosPayload.tarifa_kwh = window._tarifaBoleta;
+
   window._lastPayload = datosPayload;
-  console.log('Payload enviado:', datosPayload);
 
   try {
-    let res = await fetch('/api/analisis-energetico', {
+    // Una sola llamada. Antes se reintentaba contra /api/calcular y /calcular
+    // con este mismo payload, que tiene otra forma: /api/calcular no falla,
+    // responde 200 con todo en 0 y el usuario veía "0 kWh" como si fuera un
+    // resultado válido. /calcular ni siquiera existe.
+    const res = await fetchConTimeout('/api/analisis-energetico', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(datosPayload)
     });
-    if (!res.ok) res = await fetch('/api/calcular', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(datosPayload)
-    });
-    if (!res.ok) res = await fetch('/calcular', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(datosPayload)
-    });
 
-    if (res.ok) {
-      const resultado = await res.json();
-      mostrarResultados(resultado, datosPayload);
-      updateVoltiMessage('results');
-    } else {
+    if (!res.ok) {
+      mostrarErrorGlobal(await mensajeDeError(res));
       updateVoltiMessage('error');
+      return;
     }
+
+    const resultado = await res.json();
+    mostrarResultados(resultado, datosPayload);
+    updateVoltiMessage('results');
   } catch (e) {
+    const esTimeout = e.name === 'AbortError';
     console.error('Error conectando con la API:', e);
+    mostrarErrorGlobal(esTimeout
+      ? 'El cálculo está tardando más de lo normal. Revisa tu conexión e inténtalo de nuevo.'
+      : 'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.');
     updateVoltiMessage('error');
+  } finally {
+    boton.disabled = false;
+    boton.innerHTML = textoOriginal;
   }
 });
 
@@ -568,6 +759,16 @@ function poblarFactura() {
   if (el('fptAhorro'))    el('fptAhorro').textContent    = `${simbolo} ${fmt(ahorroVal)}${sufijo}`;
 
   // ── Recomendaciones ──
+  // ── Narrativa del modelo ──
+  // Destino real del texto que hasta ahora se generaba en cada cálculo, se
+  // escribía en un div oculto y no se leía en ninguna parte: `narrativa` se
+  // desestructuraba aquí arriba y no se usaba en ninguna línea de la función.
+  const narrativaEl = el('fptNarrativa');
+  if (narrativaEl) {
+    narrativaEl.textContent = narrativa || '';
+    narrativaEl.hidden = !narrativa;
+  }
+
   const recsList = el('fptRecs');
   if (recsList) {
     recsList.innerHTML = '';

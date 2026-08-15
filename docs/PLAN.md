@@ -50,7 +50,13 @@ Las seis se resolvieron por la opción recomendada.
 | 3.6 Modelo de visión configurable | ✅ Hecha — `GROQ_VISION_MODEL` |
 | 3.7 Tope de tamaño de imagen | ✅ Hecha — 413 antes de gastar la llamada |
 | 3.8 Rate-limit y sin fugas de error | ✅ Hecha — `flask-limiter` |
-| 4.6 Retirar el agente CLI (D-5) | ✅ Adelantada — `agente.py` y `tools.py` usaban las firmas viejas |
+| 4.1 Narrativa a la factura impresa | ✅ Hecha |
+| 4.2 Cablear la subida de boleta | ✅ Hecha — uploader en el Paso 1 |
+| 4.3 Cablear `interpretar-campo` | ✅ Hecha — campo libre al elegir "Otro" |
+| 4.4 Eliminar la cadena de fallback | ✅ Hecha |
+| 4.5 Timeout y estado de carga en el cliente | ✅ Hecha |
+| 4.6 Retirar el agente CLI (D-5) | ✅ Hecha — `agente.py` y `tools.py` usaban las firmas viejas |
+| 4.6b `/api/comparar` | ⏸️ En espera deliberada — ver nota |
 | 5.1 Parseo de números latinoamericanos | ✅ Adelantada — el bug estaba en la ruta que tocaba 3.x |
 | 5.4 `/api/comparar` con payload incompleto | ✅ Adelantada |
 
@@ -282,8 +288,22 @@ resultado válido. `/calcular` ni siquiera existe.
 hay ninguno: si el backend tarda, el navegador se queda colgado sin feedback.
 
 ### 4.6 Resolver el código huérfano *(requiere D-5)*
-`/api/comparar` (sin caller) y el agente CLI de `src/agente.py` + `src/tools.py` —el agente real con
-`bind_tools`, nunca montado en Flask—: cablear o borrar, pero no dejar en limbo.
+El agente CLI de `src/agente.py` + `src/tools.py` se retiró: usaba las firmas anteriores del motor y
+quedó recuperable en el commit `b20282c`.
+
+**`/api/comparar` se deja sin cablear a propósito**, y esta es la razón para que no quede en limbo:
+su catálogo `categorias_comparables` está marcado en el propio JSON como *"DE EJEMPLO... reemplázalos
+por datos reales de retailers antes de usar en producción"*, y todos los `precio_referencial` son
+`null`. Conectarlo hoy pondría recomendaciones de compra con datos inventados delante del usuario,
+que es peor que no ofrecer la función. El endpoint queda vivo y con tests; se cablea cuando haya un
+catálogo real detrás.
+
+### 4.7 Hallazgo abierto por la Fase 4
+
+**El interruptor de periodo venía al revés.** El campo pide *"Consumo eléctrico mensual (kWh)"* con
+marcador de posición "Ej: 250", pero el interruptor "El consumo es anual" estaba `checked` por
+defecto. Quien escribía 250 pensando en su mes obtenía 20,8 kWh, porque el backend lo dividía por 12.
+Corregido: el valor por defecto es mensual, que es lo que pide la etiqueta.
 
 ---
 

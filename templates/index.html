@@ -134,11 +134,28 @@
             <div class="form-group">
               <div class="toggle-row">
                 <label class="toggle-switch">
-                  <input type="checkbox" id="flagAnual" checked>
+                  <!-- Sin `checked`: el campo de arriba pide el consumo MENSUAL, así
+                       que el valor por defecto debe coincidir con lo que pide la
+                       etiqueta. Venía marcado, y quien escribía 250 pensando en su
+                       mes acababa con 20,8 kWh porque el backend lo dividía por 12. -->
+                  <input type="checkbox" id="flagAnual">
                   <span class="toggle-switch__slider"></span>
                 </label>
-                <span class="toggle-row__label" id="flagAnualLabel">El consumo es anual</span>
+                <span class="toggle-row__label" id="flagAnualLabel">El consumo es mensual</span>
               </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputBoleta">
+                <span class="label-badge"><i data-lucide="file-text"></i></span>
+                ¿Prefieres subir tu boleta?
+              </label>
+              <input type="file" class="form-input" id="inputBoleta"
+                accept=".png,.jpg,.jpeg,.webp,.pdf">
+              <span class="form-hint">
+                Leemos el consumo y la tarifa por ti. Acepta JPG, PNG, WEBP o PDF.
+              </span>
+              <div class="boleta-estado" id="boletaEstado" role="status" aria-live="polite" hidden></div>
             </div>
 
           </div>
@@ -189,6 +206,18 @@
                   <div class="vivienda-card__title">Otro</div>
                 </div>
               </div>
+            </div>
+
+            <div class="form-group" id="grupoInmuebleOtro" hidden>
+              <label class="form-label" for="inputInmuebleOtro">
+                <span class="label-badge"><i data-lucide="pencil"></i></span>
+                Descríbelo en tus palabras
+              </label>
+              <input type="text" class="form-input" id="inputInmuebleOtro"
+                placeholder="Ej: un galpón reconvertido en loft">
+              <span class="form-hint" id="inmuebleOtroEstado">
+                Volti lo interpretará para clasificar tu vivienda.
+              </span>
             </div>
 
             <div class="form-grid form-grid--2col">
@@ -612,6 +641,11 @@
           <span class="fpt-total-value" id="fptAhorro">—</span>
         </div>
       </div>
+
+      <!-- Lectura en prosa del diagnóstico. Es el destino de la narrativa del
+           modelo: hasta ahora se generaba en cada cálculo y se escribía en un
+           div oculto que nadie llegaba a ver nunca. -->
+      <p class="fpt-narrativa" id="fptNarrativa" hidden></p>
     </section>
 
     <!-- ── PIE DE PÁGINA / FIRMA INSTITUCIONAL ── -->
