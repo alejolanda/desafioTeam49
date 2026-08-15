@@ -11,7 +11,12 @@ import app as aplicacion
 
 @pytest.fixture(autouse=True)
 def sin_llamadas_al_llm(monkeypatch):
-    monkeypatch.setattr(aplicacion, "generar_narrativa", lambda resumen: "narrativa de prueba")
+    monkeypatch.setattr(
+        aplicacion, "generar_narrativa", lambda resumen: {"texto": "narrativa de prueba", "fuente": "test"}
+    )
+    # El limitador cuenta por IP y todos los tests comparten la del cliente de
+    # pruebas: sin esto, la propia batería se autobloquearía con 429.
+    aplicacion.limiter.enabled = False
 
 
 @pytest.fixture

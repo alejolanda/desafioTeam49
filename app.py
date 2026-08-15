@@ -1,18 +1,33 @@
+from __future__ import annotations
+
 import base64
 import os
 import re
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_groq import ChatGroq
 from werkzeug.utils import secure_filename
 
 from src import calculos
+from src import llm as groq
 
 load_dotenv()
 
 app = Flask(__name__)
+
+# Los endpoints que llaman a Groq se pagan por uso y no piden credenciales:
+# sin tope, cualquiera puede agotar la cuota del proyecto. El almacenamiento en
+# memoria basta para un solo proceso; con varios workers (ver Dockerfile, 6.4)
+# hay que apuntar a Redis con RATELIMIT_STORAGE_URI.
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    storage_uri=os.getenv("RATELIMIT_STORAGE_URI", "memory://"),
+    enabled=os.getenv("RATELIMIT_ENABLED", "1") == "1",
+)
 
 # Configuración de subida de archivos
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
@@ -26,6 +41,55 @@ def extension_permitida(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in EXTENSIONES_PERMITIDAS
 
 
+# Topes de plausibilidad para lo que se extrae de una boleta. Son holgados a
+# propósito: solo descartan lo absurdo, no lo inusual. La tarifa admite valores
+# grandes porque hay monedas con tarifas de tres cifras por kWh (PYG, COP).
+LIMITE_KWH_MES = 100_000.0
+LIMITE_TARIFA = 100_000.0
+
+
+def _numero_de_boleta(texto: str) -> float | None:
+    """
+    Convierte a float un número tal como aparece impreso en una boleta.
+
+    El código anterior hacía `float(texto.replace(",", "."))`, que convierte
+    "1.234,5" en "1.234.5" y revienta con ValueError: una boleta con separador
+    de miles tumbaba la subida con un 500.
+
+    Regla: cuando hay dos separadores distintos, el último es el decimal. Cuando
+    hay uno solo, es separador de miles si le siguen exactamente tres dígitos
+    (1.234 → 1234) y decimal en cualquier otro caso (1,5 → 1.5).
+    """
+    if not texto:
+        return None
+
+    limpio = re.sub(r"[^\d.,]", "", str(texto))
+    if not limpio:
+        return None
+
+    ultima_coma = limpio.rfind(",")
+    ultimo_punto = limpio.rfind(".")
+
+    if ultima_coma >= 0 and ultimo_punto >= 0:
+        if ultima_coma > ultimo_punto:
+            # Formato "1.234,56": el punto agrupa miles y la coma es decimal.
+            limpio = limpio.replace(".", "").replace(",", ".")
+        else:
+            # Formato "1,234.56": al revés.
+            limpio = limpio.replace(",", "")
+    else:
+        separador = "," if ultima_coma >= 0 else ("." if ultimo_punto >= 0 else "")
+        if separador:
+            partes = limpio.split(separador)
+            es_miles = len(partes) > 2 or len(partes[-1]) == 3
+            limpio = "".join(partes) if es_miles else ".".join(partes)
+
+    try:
+        return float(limpio)
+    except ValueError:
+        return None
+
+
 SYSTEM_PROMPT_NARRADOR = """Eres "VólticvS", un asesor energético inteligente y amigable.
 Ya se calcularon con exactitud el consumo y el ahorro potencial del hogar del usuario;
 tu única tarea es redactar un resumen breve (4 a 6 frases) explicando los resultados de
@@ -37,7 +101,8 @@ Destaca cuál es la mayor oportunidad de ahorro y da recomendaciones concretas.
 """
 
 
-def generar_narrativa(resumen: dict) -> str:
+def _narrativa_de_respaldo(resumen: dict) -> str:
+    """Texto determinista para cuando Groq no está disponible o falla."""
     simbolo = resumen.get("simbolo_moneda", "$")
     moneda = resumen.get("moneda", "")
     costo_val = resumen.get("total_clp_mes") or resumen.get("costo_estimado_mes") or 0
@@ -46,21 +111,34 @@ def generar_narrativa(resumen: dict) -> str:
     costo_str = f"{simbolo} {costo_val:,.0f} {moneda}".strip() if isinstance(costo_val, (int, float)) else str(costo_val)
     ahorro_str = f"{simbolo} {ahorro_val:,.0f} {moneda}".strip() if isinstance(ahorro_val, (int, float)) else str(ahorro_val)
 
+    return (
+        f"Tu consumo estimado es de {resumen.get('total_kwh_mes', 0)} kWh al mes "
+        f"(~{costo_str}). Podrías ahorrar hasta "
+        f"{ahorro_str} al mes aplicando los cambios sugeridos."
+    )
+
+
+def generar_narrativa(resumen: dict) -> dict:
+    """
+    Devuelve {"texto", "fuente"}, donde `fuente` distingue el texto del modelo
+    del de respaldo.
+
+    Antes esto era un `except Exception` mudo que devolvía el respaldo como si
+    fuera la respuesta buena: con una clave inválida se pagaban tres llamadas
+    fallidas por request y nadie se enteraba nunca.
+    """
+    if not groq.disponible():
+        app.logger.warning("GROQ_API_KEY no configurada: se usa la narrativa de respaldo.")
+        return {"texto": _narrativa_de_respaldo(resumen), "fuente": "respaldo_sin_api_key"}
+
     try:
-        llm = ChatGroq(
-            model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
-            temperature=0.5,
-            api_key=os.getenv("GROQ_API_KEY"),
-        )
+        llm = groq.obtener_llm(temperatura=0.5)
         mensaje = f"Estos son los resultados calculados para este hogar: {resumen}"
         respuesta = llm.invoke([SystemMessage(content=SYSTEM_PROMPT_NARRADOR), HumanMessage(content=mensaje)])
-        return respuesta.content
-    except Exception:
-        return (
-            f"Tu consumo estimado es de {resumen.get('total_kwh_mes', 0)} kWh al mes "
-            f"(~{costo_str}). Podrías ahorrar hasta "
-            f"{ahorro_str} al mes aplicando los cambios sugeridos."
-        )
+        return {"texto": respuesta.content.strip(), "fuente": "llm"}
+    except Exception as error:
+        app.logger.warning("Groq falló al generar la narrativa: %s", error, exc_info=True)
+        return {"texto": _narrativa_de_respaldo(resumen), "fuente": "respaldo_error"}
 
 
 def generar_recomendaciones(desglose: list) -> list:
@@ -126,6 +204,7 @@ def paises():
 
 
 @app.route("/api/interpretar-campo", methods=["POST"])
+@limiter.limit("20 per hour")
 def interpretar_campo():
     """
     Llamada Opcional #1 (solo cuando el usuario escribe "Otro" en tipo de inmueble).
@@ -147,18 +226,16 @@ def interpretar_campo():
         return jsonify({"valor_mapeado": "Casa", "fuente": "fallback_vacio"})
 
     VALORES_INMUEBLE = ["Casa", "Casa pareada", "Departamento", "Casa móvil", "Otro"]
-    groq_api_key = os.getenv("GROQ_API_KEY")
 
-    if not groq_api_key:
-        # Sin API key: devolvemos el texto tal cual como fallback limpio
-        return jsonify({"valor_mapeado": texto[:50], "fuente": "fallback_sin_api"})
+    if not groq.disponible():
+        # Antes se devolvía `texto[:50]`, es decir el texto crudo del usuario:
+        # el llamador recibía una cadena arbitraria donde esperaba uno de los
+        # cinco valores. "Otro" sí pertenece a la lista y conserva el sentido.
+        app.logger.warning("GROQ_API_KEY no configurada: no se puede interpretar el texto libre.")
+        return jsonify({"valor_mapeado": "Otro", "fuente": "fallback_sin_api", "texto_original": texto[:50]})
 
     try:
-        llm = ChatGroq(
-            model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
-            temperature=0,
-            api_key=groq_api_key,
-        )
+        llm = groq.obtener_llm(temperatura=0, max_tokens=16)
         prompt = (
             f"El usuario describió su tipo de vivienda como: '{texto}'.\n"
             f"Mapea esto al valor MÁS CERCANO de esta lista exacta: {VALORES_INMUEBLE}.\n"
@@ -168,10 +245,13 @@ def interpretar_campo():
         valor = respuesta.content.strip().strip("\"'.")
         # Validar que el valor esté en la lista permitida
         if valor not in VALORES_INMUEBLE:
+            app.logger.info("El modelo devolvió un valor fuera de la lista: %r", valor[:80])
             valor = "Casa"
         return jsonify({"valor_mapeado": valor, "fuente": "llm"})
-    except Exception as e:
-        return jsonify({"valor_mapeado": "Casa", "fuente": "fallback_error", "detalle": str(e)})
+    except Exception as error:
+        # El detalle va al log del servidor, no al cliente.
+        app.logger.warning("Groq falló al interpretar el campo libre: %s", error, exc_info=True)
+        return jsonify({"valor_mapeado": "Casa", "fuente": "fallback_error"})
 
 
 @app.route("/api/comparar", methods=["POST"])
@@ -196,6 +276,7 @@ def index():
 
 
 @app.route("/api/calcular", methods=["POST"])
+@limiter.limit("60 per hour")
 def calcular():
     datos = request.get_json(force=True)
     tarifa, ficha_pais = _resolver_tarifa(datos)
@@ -279,10 +360,13 @@ def calcular():
         },
     }
 
-    resumen["narrativa"] = generar_narrativa(resumen)
+    narrativa = generar_narrativa(resumen)
+    resumen["narrativa"] = narrativa["texto"]
+    resumen["narrativa_fuente"] = narrativa["fuente"]
     return jsonify(resumen)
 
 @app.route("/api/subir-boleta", methods=["POST"])
+@limiter.limit("10 per hour")
 def subir_boleta():
     """
     Recibe una imagen (PNG/JPG/WEBP) o PDF de la boleta eléctrica.
@@ -314,9 +398,7 @@ def subir_boleta():
     nombre_pais = datos_pais.get("nombre", "tu país")
 
     try:
-        import json as _json
         extension = nombre_seguro.rsplit(".", 1)[1].lower()
-        groq_api_key = os.getenv("GROQ_API_KEY")
 
         prompt_extraccion = f"""Analiza esta boleta eléctrica de {nombre_pais} (moneda: {moneda}).
 
@@ -349,27 +431,36 @@ RESPONDE SOLO con este JSON exacto, sin texto adicional:
                 texto_pdf, re.IGNORECASE
             )
 
-            kwh_extraido   = float(kwh_regex.group(1).replace(",", "."))   if kwh_regex   else None
-            tarifa_extraida = float(tarifa_regex.group(1).replace(",", ".")) if tarifa_regex else None
+            kwh_extraido = _numero_de_boleta(kwh_regex.group(1)) if kwh_regex else None
+            tarifa_extraida = _numero_de_boleta(tarifa_regex.group(1)) if tarifa_regex else None
 
             # Si no tenemos ambos valores, usar Groq con texto
-            if groq_api_key and (kwh_extraido is None or tarifa_extraida is None):
-                llm = ChatGroq(
-                    model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
-                    temperature=0,
-                    api_key=groq_api_key,
-                )
+            if groq.disponible() and (kwh_extraido is None or tarifa_extraida is None):
+                llm = groq.obtener_llm(temperatura=0, json_mode=True)
                 contenido_prompt = f"{prompt_extraccion}\n\nTEXTO DE LA BOLETA:\n{texto_pdf[:4000]}"
                 respuesta = llm.invoke([HumanMessage(content=contenido_prompt)])
-                texto_resp = respuesta.content.strip()
-                match = re.search(r'\{[^{}]+\}', texto_resp, re.DOTALL)
-                if match:
-                    datos = _json.loads(match.group())
-                    kwh_extraido    = datos.get("kwh_mes")    or kwh_extraido
-                    tarifa_extraida = datos.get("tarifa_kwh") or tarifa_extraida
-                    confianza       = datos.get("confianza",  "media")
-                    nota            = datos.get("nota",       "")
+                datos = groq.extraer_json(respuesta.content)
+
+                if datos:
+                    # Validación explícita: lo que devuelve el modelo puede ser una
+                    # cadena, un negativo o una cifra absurda. Antes salía tal cual
+                    # hacia el cliente y de ahí al cálculo.
+                    del_modelo_kwh = groq.numero_valido(datos.get("kwh_mes"), 0.1, LIMITE_KWH_MES)
+                    del_modelo_tarifa = groq.numero_valido(datos.get("tarifa_kwh"), 0.0001, LIMITE_TARIFA)
+
+                    # Comprobación explícita contra None: con `or`, un 0 legítimo
+                    # devuelto por el modelo se descartaba como si fuera ausencia.
+                    if del_modelo_kwh is not None:
+                        kwh_extraido = del_modelo_kwh
+                    if del_modelo_tarifa is not None:
+                        tarifa_extraida = del_modelo_tarifa
+
+                    confianza = datos.get("confianza", "media")
+                    nota = datos.get("nota", "")
+                    if confianza not in ("alta", "media", "baja"):
+                        confianza = "media"
                 else:
+                    app.logger.warning("El modelo no devolvió un JSON interpretable para el PDF.")
                     confianza, nota = "baja", "Extracción automática parcial."
             else:
                 confianza = "alta" if (kwh_extraido and tarifa_extraida) else "media"
@@ -381,12 +472,25 @@ RESPONDE SOLO con este JSON exacto, sin texto adicional:
                 "moneda":     moneda,
                 "simbolo":    simbolo,
                 "confianza":  confianza,
-                "nota":       nota,
+                "nota":       str(nota)[:300],
             })
 
         # ── CASO IMAGEN: enviar en base64 al modelo de visión ──────
-        if not groq_api_key:
-            return jsonify({"error": "Clave API no configurada. Configura GROQ_API_KEY en el archivo .env para analizar imágenes."}), 500
+        if not groq.disponible():
+            return jsonify({
+                "error": "El análisis de imágenes no está disponible: falta configurar la clave de la API."
+            }), 503
+
+        tamano_mb = os.path.getsize(ruta_temp) / (1024 * 1024)
+        if tamano_mb > groq.MAX_IMAGEN_MB:
+            # Se corta antes de codificar y enviar: base64 infla el archivo ~33%
+            # y la API la rechazaría igual, ya gastada la llamada.
+            return jsonify({
+                "error": (
+                    f"La imagen pesa {tamano_mb:.1f} MB y el máximo para análisis es "
+                    f"{groq.MAX_IMAGEN_MB:.0f} MB. Súbela con menor resolución o en PDF."
+                )
+            }), 413
 
         with open(ruta_temp, "rb") as f:
             imagen_b64 = base64.b64encode(f.read()).decode("utf-8")
@@ -396,11 +500,9 @@ RESPONDE SOLO con este JSON exacto, sin texto adicional:
             "png": "image/png",  "webp": "image/webp"
         }.get(extension, "image/jpeg")
 
-        llm = ChatGroq(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
-            temperature=0,
-            api_key=groq_api_key,
-        )
+        # Modelo de visión configurable: antes estaba fijo en el código,
+        # ignorando GROQ_MODEL y sin variable propia.
+        llm = groq.obtener_llm(modelo=groq.MODELO_VISION, temperatura=0)
 
         mensaje = HumanMessage(content=[
             {"type": "text",      "text": prompt_extraccion},
@@ -408,24 +510,29 @@ RESPONDE SOLO con este JSON exacto, sin texto adicional:
         ])
 
         respuesta = llm.invoke([mensaje])
-        texto = respuesta.content.strip()
+        datos = groq.extraer_json(respuesta.content)
 
-        match = re.search(r'\{[^{}]+\}', texto, re.DOTALL)
-        if match:
-            datos = _json.loads(match.group())
-            return jsonify({
-                "kwh_mes":    datos.get("kwh_mes"),
-                "tarifa_kwh": datos.get("tarifa_kwh"),
-                "moneda":     moneda,
-                "simbolo":    simbolo,
-                "confianza":  datos.get("confianza", "media"),
-                "nota":       datos.get("nota", ""),
-            })
-        else:
-            return jsonify({"error": "No se pudieron extraer datos de la imagen.", "texto_extraido": texto}), 422
+        if not datos:
+            app.logger.warning("El modelo de visión no devolvió un JSON interpretable.")
+            return jsonify({"error": "No se pudieron extraer datos de la imagen."}), 422
 
-    except Exception as e:
-        return jsonify({"error": f"Error al procesar la boleta: {str(e)}"}), 500
+        confianza = datos.get("confianza", "media")
+        return jsonify({
+            "kwh_mes":    groq.numero_valido(datos.get("kwh_mes"), 0.1, LIMITE_KWH_MES),
+            "tarifa_kwh": groq.numero_valido(datos.get("tarifa_kwh"), 0.0001, LIMITE_TARIFA),
+            "moneda":     moneda,
+            "simbolo":    simbolo,
+            "confianza":  confianza if confianza in ("alta", "media", "baja") else "media",
+            "nota":       str(datos.get("nota", ""))[:300],
+        })
+
+    except groq.GroqNoConfigurado:
+        return jsonify({"error": "El análisis de boletas no está disponible en este momento."}), 503
+    except Exception as error:
+        # El detalle va al log, no al cliente: el mensaje de excepción puede
+        # incluir rutas del servidor o fragmentos de la petición a la API.
+        app.logger.exception("Error al procesar la boleta: %s", error)
+        return jsonify({"error": "No se pudo procesar la boleta. Intenta con otro archivo."}), 500
     finally:
         if os.path.exists(ruta_temp):
             os.remove(ruta_temp)
@@ -532,6 +639,7 @@ def _recomendaciones_contextuales(categoria: str, d: dict) -> list[str]:
 
 
 @app.route("/api/analisis-energetico", methods=["POST"])
+@limiter.limit("60 per hour")
 def analisis_energetico_mvp():
     """Endpoint principal de cálculo energético — v2.0."""
     data = request.get_json(force=True) or {}
@@ -603,7 +711,8 @@ def analisis_energetico_mvp():
         "fuente_ahorro":   fuente_ahorro,
         "desglose":        desglose,
         "recomendaciones": recomendaciones,
-        "narrativa":       narrativa,
+        "narrativa":       narrativa["texto"],
+        "narrativa_fuente": narrativa["fuente"],
         # Aliases de compatibilidad (versiones previas del frontend los esperan).
         # Marcados como deprecados en la tarea 7.3 del plan; se retiran cuando el
         # frontend deje de leerlos.

@@ -42,7 +42,17 @@ Las seis se resolvieron por la opción recomendada.
 | 2.4 Ahorro real en vez del 20% fijo | ✅ Hecha |
 | 2.5 Eliminar `probabilidad` | ✅ Hecha |
 | 2.6 Tests de `calculos.py` | ✅ Hecha — 51 tests, 99% de cobertura (objetivo era 80%) |
+| 3.1 Un cliente con timeout | ✅ Hecha — nuevo módulo `src/llm.py` |
+| 3.2 Los fallos de Groq se registran | ✅ Hecha — campo `narrativa_fuente` en la respuesta |
+| 3.3 JSON mode y parser con balanceo de llaves | ✅ Hecha |
+| 3.4 Validar la salida del modelo | ✅ Hecha — `llm.numero_valido` |
+| 3.5 El `or` que descartaba el 0 | ✅ Hecha |
+| 3.6 Modelo de visión configurable | ✅ Hecha — `GROQ_VISION_MODEL` |
+| 3.7 Tope de tamaño de imagen | ✅ Hecha — 413 antes de gastar la llamada |
+| 3.8 Rate-limit y sin fugas de error | ✅ Hecha — `flask-limiter` |
 | 4.6 Retirar el agente CLI (D-5) | ✅ Adelantada — `agente.py` y `tools.py` usaban las firmas viejas |
+| 5.1 Parseo de números latinoamericanos | ✅ Adelantada — el bug estaba en la ruta que tocaba 3.x |
+| 5.4 `/api/comparar` con payload incompleto | ✅ Adelantada |
 
 > **Sobre 0.1 y 1.2.** El trabajo se aisló en la rama `vllanten` para no forzar un re-clone al equipo.
 > Eso resuelve la 1.1 pero **no** la 1.2: los zips viven en `e4cf47e`, ancestro de `main` y de
