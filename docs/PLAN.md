@@ -367,6 +367,26 @@ renombra un ID el asistente cae en silencio al emparejamiento por texto. Se reso
 `tests/test_contrato_frontend.py`, que falla en CI si `denji.js` o `app.js` apuntan a un ID que ya no
 está en la plantilla.
 
+### 5.9 El micrófono del asistente no funcionaba *(hallazgo nuevo — cerrado)*
+
+Reportado al usar la aplicación. Cuatro defectos acumulados en el mismo camino:
+
+1. **Chrome devuelve el texto con puntuación y mayúscula** —`"Sí."`, `"Dos."`— y el código comparaba
+   con igualdad exacta contra `'si'` o contra la etiqueta completa del botón. `['si'].includes('si.')`
+   es `false`: **responder "sí" no funcionó nunca**. Se añade `normalizarVoz()`, que quita la
+   puntuación, y las comparaciones pasan a ser por palabras y con sinónimos.
+2. **El botón se quedaba en "Escuchando…" para siempre.** No había manejador `onend`, que es el único
+   que se dispara en todos los finales; si la escucha terminaba sin resultado ni error, nada
+   restauraba el botón. Además `rec.start()` lanza `InvalidStateError` de forma síncrona si ya había
+   un reconocimiento en curso, y la excepción escapaba del `onclick`.
+3. **No se podía cancelar.** El botón se deshabilitaba a sí mismo, así que una escucha colgada solo
+   se salvaba recargando la página. Ahora alterna: el segundo toque cancela.
+4. **El asistente se escuchaba a sí mismo.** No se detenía la síntesis de voz al abrir el micrófono.
+
+Añadidos: tope de 12 s, reintento con otro idioma ante `language-not-supported` —Chrome puede
+rechazar `es-419`, que era el que se pedía— y mensajes que dicen qué se entendió en vez de un
+"no te entendí" genérico.
+
 ### 5.8 Geolocalización a un tercero *(hallazgo nuevo — cerrada)*
 `denji.js` enviaba las coordenadas del usuario directamente a
 `nominatim.openstreetmap.org` para resolver la ciudad. La consulta pasa ahora por el backend

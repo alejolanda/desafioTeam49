@@ -194,41 +194,129 @@
     'service-not-allowed': 'El navegador bloqueó el servicio de reconocimiento de voz.',
     'no-speech': 'No escuché nada, intenta de nuevo.',
     'audio-capture': 'No encontré un micrófono conectado.',
-    'network': 'Hubo un problema de red al reconocer la voz.'
+    'network': 'Hubo un problema de red al reconocer la voz.',
+    'aborted': 'Se interrumpió la escucha, intenta de nuevo.',
+    'language-not-supported': 'Tu navegador no reconoce este idioma.'
   };
 
-  function escucharUnaVez(onTranscript, onError){
+  // Chrome no acepta todas las etiquetas de idioma: 'es-419' (español de
+  // Latinoamérica) es válido en BCP-47 pero su reconocedor puede rechazarlo con
+  // language-not-supported. Se prueba el idioma del navegador y se cae a
+  // variantes concretas, que sí están en su lista.
+  const IDIOMAS_VOZ = [navigator.language, 'es-CL', 'es-MX', 'es-ES', 'es'];
+  let idiomaVozIdx = 0;
+
+  /**
+   * Normaliza lo que devuelve el reconocedor, que NO es texto limpio: Chrome
+   * capitaliza y añade puntuación ("Sí.", "Dos."), así que una comparación
+   * exacta contra 'si' o contra la etiqueta de un botón fallaba siempre. Es la
+   * causa más probable de que el micrófono "no hiciera nada".
+   *
+   * Se mantiene aparte de normalizar(), que se usa para emparejar texto del DOM
+   * y no debe cambiar de comportamiento.
+   */
+  function normalizarVoz(txt){
+    return normalizar(txt).replace(/[.,;:!¡?¿"']/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  // Reconocimiento en curso, para poder cancelarlo desde fuera.
+  let reconocimientoActivo = null;
+
+  function detenerEscucha(){
+    if(!reconocimientoActivo) return;
+    try { reconocimientoActivo.abort(); } catch(_){}
+    reconocimientoActivo = null;
+  }
+
+  function escucharUnaVez(onTranscript, onError, onFin){
+    // El asistente habla por los altavoces: si sigue hablando cuando se abre el
+    // micrófono, se escucha a sí mismo y el resultado es basura.
+    if('speechSynthesis' in window) speechSynthesis.cancel();
+    detenerEscucha();
+
     const rec = new SpeechRecognitionAPI();
-    rec.lang = 'es-419';
+    reconocimientoActivo = rec;
+    rec.lang = IDIOMAS_VOZ[idiomaVozIdx] || 'es-ES';
     rec.continuous = false;
     rec.interimResults = false;
     rec.maxAlternatives = 1;
-    rec.onresult = (e) => onTranscript(normalizar(e.results[0][0].transcript));
-    rec.onerror = (e) => { if(onError) onError(e.error); };
-    rec.start();
+
+    let resuelto = false;
+    const cortar = setTimeout(() => { try { rec.abort(); } catch(_){} }, 12000);
+
+    rec.onresult = (e) => { resuelto = true; onTranscript(normalizarVoz(e.results[0][0].transcript)); };
+    rec.onerror = (e) => {
+      resuelto = true;
+      // Con un idioma no soportado se reintenta con el siguiente de la lista.
+      if(e.error === 'language-not-supported' && idiomaVozIdx < IDIOMAS_VOZ.length - 1){
+        idiomaVozIdx++;
+        clearTimeout(cortar);
+        escucharUnaVez(onTranscript, onError, onFin);
+        return;
+      }
+      if(onError) onError(e.error);
+    };
+
+    // onend siempre se dispara. Sin esto, cualquier final que no pase por
+    // onresult ni onerror dejaba el botón en "Escuchando…" y deshabilitado
+    // para siempre.
+    rec.onend = () => {
+      clearTimeout(cortar);
+      if(reconocimientoActivo === rec) reconocimientoActivo = null;
+      if(onFin) onFin();
+      if(!resuelto && onError) onError('no-speech');
+    };
+
+    try {
+      rec.start();
+    } catch(error){
+      // start() lanza InvalidStateError de forma SÍNCRONA si ya había un
+      // reconocimiento en curso. Sin capturarlo, la excepción escapaba del
+      // onclick y el botón quedaba colgado.
+      clearTimeout(cortar);
+      if(onFin) onFin();
+      if(onError) onError('aborted');
+    }
   }
 
   function crearBotonMic(onTranscript){
     if(!SpeechRecognitionAPI){ return null; } // el navegador no soporta la API, no hay nada que mostrar
     if(!contextoSeguro){
-      // Existe la API pero el navegador la bloquea por no ser https/localhost — avisar, no morir en silencio
+      // Existe la API pero el navegador la bloquea por no ser https ni localhost.
       const aviso = document.createElement('p');
       aviso.className = 'denji-sim-note';
-      aviso.textContent = 'El micrófono necesita que entres por http://localhost:5000, no por la IP de red.';
+      aviso.textContent = 'El micrófono necesita que entres por localhost o por https, no por la IP de red.';
       return aviso;
     }
+
+    const ETIQUETA_INICIAL = '🎤 Responder por voz';
     const b = document.createElement('button');
     b.className = 'denji-opt-btn';
-    b.textContent = '🎤 Responder por voz';
+    b.textContent = ETIQUETA_INICIAL;
+
+    let escuchando = false;
+    const restaurar = () => { escuchando = false; b.textContent = ETIQUETA_INICIAL; };
+
     b.onclick = () => {
-      b.textContent = '🎤 Escuchando…';
-      b.disabled = true;
+      // El botón alterna: si ya está escuchando, este clic cancela. Antes se
+      // deshabilitaba a sí mismo, así que si la escucha se colgaba no quedaba
+      // ninguna forma de salir salvo recargar la página.
+      if(escuchando){
+        detenerEscucha();
+        restaurar();
+        statusEl.textContent = 'Denji: escucha cancelada, usa los botones si prefieres';
+        return;
+      }
+
+      escuchando = true;
+      b.textContent = '🎤 Escuchando… (toca para cancelar)';
+
       escucharUnaVez(
-        (t) => { b.textContent = '🎤 Responder por voz'; b.disabled = false; onTranscript(t); },
+        (t) => { restaurar(); onTranscript(t); },
         (errorCode) => {
-          b.textContent = '🎤 Responder por voz'; b.disabled = false;
           statusEl.textContent = 'Denji: ' + (MENSAJES_ERROR_VOZ[errorCode] || ('no pude escuchar (' + errorCode + ')'));
-        }
+        },
+        restaurar   // onFin: pase lo que pase, el botón vuelve a su estado
       );
     };
     return b;
@@ -667,7 +755,10 @@
       document.getElementById('denji-num-omitir').onclick = () => preguntarSiOmitir(step);
       const micNum = crearBotonMic((transcript) => {
         const n = parseNumeroHablado(transcript);
-        if(n === null){ statusEl.textContent = 'Denji: no entendí el número, intenta de nuevo o usa los botones'; return; }
+        if(n === null){
+          statusEl.textContent = 'Denji: entendí "' + transcript + '", que no es un número; usa los botones';
+          return;
+        }
         guardarYAvanzar(step.guarda_en, n);
       });
       if(micNum) card.querySelector('div:last-child').appendChild(micNum);
@@ -684,9 +775,15 @@
       no.onclick = () => guardarYAvanzar(step.guarda_en, 0);
       card.appendChild(si); card.appendChild(no);
       const micBool = crearBotonMic((transcript) => {
-        if(['si', 'correcto'].includes(transcript)) guardarYAvanzar(step.guarda_en, 1);
-        else if(['no', 'incorrecto'].includes(transcript)) guardarYAvanzar(step.guarda_en, 0);
-        else statusEl.textContent = 'Denji: no te entendí, intenta de nuevo o usa los botones';
+        // Se compara por palabras y con sinónimos: la gente responde "sí claro"
+        // o "sip", no la palabra exacta que esperaba una igualdad estricta.
+        const palabras = transcript.split(' ');
+        const AFIRMA = ['si', 'sip', 'claro', 'correcto', 'afirmativo', 'obvio', 'tengo', 'ya'];
+        const NIEGA = ['no', 'nop', 'nada', 'incorrecto', 'negativo', 'ninguno', 'ninguna'];
+
+        if(palabras.some(p => NIEGA.includes(p))) guardarYAvanzar(step.guarda_en, 0);
+        else if(palabras.some(p => AFIRMA.includes(p))) guardarYAvanzar(step.guarda_en, 1);
+        else statusEl.textContent = 'Denji: entendí "' + transcript + '"; di sí o no, o usa los botones';
       });
       if(micBool) card.appendChild(micBool);
       return;
@@ -702,9 +799,15 @@
         card.appendChild(b);
       });
       const micChoice = crearBotonMic((transcript) => {
-        const match = step.opciones.find(op => normalizar(op.label) === transcript);
+        // La igualdad exacta contra la etiqueta completa fallaba con cualquier
+        // palabra de más: decir "una casa" no casaba con la opción "Casa".
+        const match =
+          step.opciones.find(op => normalizarVoz(op.label) === transcript) ||
+          step.opciones.find(op => transcript.includes(normalizarVoz(op.label))) ||
+          step.opciones.find(op => normalizarVoz(op.label).includes(transcript) && transcript.length > 2);
+
         if(match) guardarYAvanzar(step.guarda_en, match.valor);
-        else statusEl.textContent = 'Denji: no te entendí, intenta de nuevo o usa los botones';
+        else statusEl.textContent = 'Denji: entendí "' + transcript + '", que no es una de las opciones';
       });
       if(micChoice) card.appendChild(micChoice);
       return;
