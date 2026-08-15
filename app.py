@@ -239,18 +239,26 @@ if DOCS_HABILITADAS:
         from flasgger import Swagger
 
         with open(RUTA_OPENAPI, encoding="utf-8") as f:
-            Swagger(app, template=yaml.safe_load(f), config={
-                "headers": [],
-                "specs": [{"endpoint": "spec", "route": "/apispec.json"}],
-                "specs_route": "/apidocs/",
-                # OBLIGATORIO: pasar un `config` propio sustituye al de flasgger
-                # por completo, no lo completa. Sin esta clave su blueprint se
-                # registra en /static, choca con el de Flask —que gana por estar
-                # primero— y la página de Swagger carga pero sin ninguno de sus
-                # activos: 404 en swagger-ui.css, swagger-ui-bundle.js y demás.
-                "static_url_path": "/flasgger_static",
-                "swagger_ui": True,
-            })
+            contrato = yaml.safe_load(f)
+
+        Swagger(app, template=contrato, config={
+            "headers": [],
+            "specs": [{"endpoint": "spec", "route": "/apispec.json"}],
+            "specs_route": "/apidocs/",
+            # OBLIGATORIO: pasar un `config` propio sustituye al de flasgger por
+            # completo, no lo completa. Sin esta clave su blueprint se registra
+            # en /static, choca con el de Flask —que gana por estar primero— y
+            # la página de Swagger carga pero sin ninguno de sus activos: 404 en
+            # swagger-ui.css, swagger-ui-bundle.js y los demás.
+            "static_url_path": "/flasgger_static",
+            "swagger_ui": True,
+            # Sin esto, flasgger añade `swagger: "2.0"` a lo que sirve —es su
+            # modo por defecto— y queda junto al `openapi` de nuestra plantilla.
+            # Swagger UI rechaza el documento entero porque los dos campos no
+            # pueden coexistir. La versión se toma del propio contrato para que
+            # no puedan desincronizarse.
+            "openapi": contrato.get("openapi", "3.0.3"),
+        })
     except (ImportError, FileNotFoundError) as error:
         app.logger.info("Sin interfaz visual de la API (%s); /openapi.yaml se sirve igual.", error)
 

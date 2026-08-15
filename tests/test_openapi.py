@@ -131,6 +131,32 @@ def test_todos_los_activos_de_la_interfaz_visual_se_sirven():
         assert cliente.get(ruta).status_code == 200, f"activo no servido: {ruta}"
 
 
+@pytest.mark.skipif(not aplicacion.DOCS_HABILITADAS, reason="requiere ENABLE_API_DOCS=1")
+def test_el_documento_servido_es_openapi3_intacto():
+    """
+    Regresión: flasgger trabaja en modo Swagger 2.0 por defecto y añadía
+    `swagger: "2.0"` junto al `openapi` de la plantilla. Swagger UI rechazaba el
+    documento entero —los dos campos no pueden coexistir— y la página mostraba
+    "Unable to render this definition" en vez de la API.
+
+    Se comprueba además que no recorte el contrato al procesarlo.
+    """
+    cliente = aplicacion.app.test_client()
+    respuesta = cliente.get("/apispec.json")
+    if respuesta.status_code == 404:
+        pytest.skip("flasgger no está instalado en este entorno")
+
+    servido = respuesta.get_json()
+
+    assert "swagger" not in servido, "volvió a colarse el campo swagger 2.0"
+    assert servido.get("openapi", "").startswith("3."), "el documento servido no se declara OpenAPI 3"
+    assert "definitions" not in servido, "se coló el contenedor de esquemas de Swagger 2.0"
+
+    assert set(servido["paths"]) == set(ESPECIFICACION["paths"]), "se perdieron rutas al servir"
+    assert set(servido["components"]["schemas"]) == set(ESPECIFICACION["components"]["schemas"]), \
+        "se perdieron esquemas al servir"
+
+
 def test_el_catalogo_de_comparacion_se_declara_como_ejemplo():
     """El endpoint devuelve precios nulos: la spec debe advertirlo, no ocultarlo."""
     descripcion = ESPECIFICACION["paths"]["/api/comparar"]["post"]["description"]
