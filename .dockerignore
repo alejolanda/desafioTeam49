@@ -36,8 +36,11 @@ conftest.py
 htmlcov/
 requirements-dev.txt
 
-# Documentacion y entorno de desarrollo
-docs/
+# Documentacion y entorno de desarrollo. Se excluye docs/ salvo el contrato de
+# la API, que la aplicacion sirve en tiempo de ejecucion cuando ENABLE_API_DOCS
+# esta activo: sin el, ese endpoint devolvia 500 por archivo inexistente.
+docs/*
+!docs/openapi.yaml
 .devcontainer/
 UI_DESIGN.md
 

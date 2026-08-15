@@ -24,6 +24,13 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY requirements.lock ./
 RUN pip install --require-virtualenv -r requirements.lock
 
+# Interfaz visual de la API (Swagger UI), opcional. Son ~9 MB de activos que no
+# tienen nada que hacer en produccion, donde ademas la documentacion va apagada.
+# Para levantarla en desarrollo:
+#     docker compose build --build-arg INSTALAR_DOCS=1
+ARG INSTALAR_DOCS=0
+RUN if [ "$INSTALAR_DOCS" = "1" ]; then pip install flasgger pyyaml; fi
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  Etapa 2 — Imagen de ejecucion
@@ -48,6 +55,12 @@ COPY --chown=volticvs:volticvs src/ ./src/
 COPY --chown=volticvs:volticvs data/ ./data/
 COPY --chown=volticvs:volticvs static/ ./static/
 COPY --chown=volticvs:volticvs templates/ ./templates/
+
+# El contrato de la API: la aplicacion lo sirve en /openapi.yaml cuando
+# ENABLE_API_DOCS esta activo. La interfaz visual de Swagger NO viaja en la
+# imagen (flasgger son ~9 MB y es dependencia de desarrollo), pero el contrato
+# no necesita nada para servirse.
+COPY --chown=volticvs:volticvs docs/openapi.yaml ./docs/openapi.yaml
 
 # Las boletas son efimeras (el codigo las borra en el bloque finally). En
 # docker-compose este directorio se monta como tmpfs para que no toquen disco.

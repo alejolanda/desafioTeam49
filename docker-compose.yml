@@ -1,6 +1,13 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        # Interfaz visual de la API en /apidocs. Apagada por defecto: son ~9 MB
+        # de Swagger UI. Para activarla:
+        #     INSTALAR_DOCS=1 docker compose build && docker compose up -d
+        # y ENABLE_API_DOCS=1 en el .env.
+        INSTALAR_DOCS: "${INSTALAR_DOCS:-0}"
     # Puerto del host separado del puerto interno: en macOS el 5000 lo ocupa el
     # receptor de AirPlay (ControlCenter), asi que hay que poder remapear sin
     # tocar el puerto en el que escucha la aplicacion.

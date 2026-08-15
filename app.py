@@ -226,6 +226,9 @@ if DOCS_HABILITADAS:
     @limiter.exempt
     def especificacion_openapi():
         """Contrato de la API. Es la fuente única: la interfaz visual lo lee de aquí."""
+        if not os.path.isfile(RUTA_OPENAPI):
+            app.logger.error("No se encontró %s. ¿Se excluyó del contexto de build?", RUTA_OPENAPI)
+            return jsonify({"error": "El contrato de la API no está disponible en este despliegue."}), 503
         return send_file(RUTA_OPENAPI, mimetype="application/yaml")
 
     # La interfaz de Swagger empaqueta ~9 MB de activos, así que `flasgger` vive
@@ -241,8 +244,19 @@ if DOCS_HABILITADAS:
                 "specs": [{"endpoint": "spec", "route": "/apispec.json"}],
                 "specs_route": "/apidocs/",
             })
-    except ImportError:
-        app.logger.info("flasgger no está instalado: se sirve /openapi.yaml sin interfaz visual.")
+    except (ImportError, FileNotFoundError) as error:
+        app.logger.info("Sin interfaz visual de la API (%s); /openapi.yaml se sirve igual.", error)
+
+        # Un 404 seco deja a quien la busca sin saber qué pasó ni qué hacer.
+        @app.route("/apidocs/")
+        @app.route("/apidocs")
+        @limiter.exempt
+        def apidocs_no_disponible():
+            return jsonify({
+                "error": "La interfaz visual no está instalada en este despliegue.",
+                "contrato": "/openapi.yaml",
+                "como_habilitarla": "pip install -r requirements-dev.txt (no viaja en la imagen: son ~9 MB)",
+            }), 501
 
 
 @app.route("/health")

@@ -119,8 +119,17 @@ boleta, porque sin desglose no hay forma de saber dónde está el ahorro.
 ## API
 
 El contrato completo está en [`docs/openapi.yaml`](docs/openapi.yaml). Con `ENABLE_API_DOCS=1` se
-sirve además en `/openapi.yaml` y, si instalaste las dependencias de desarrollo, con interfaz visual
-en `/apidocs`.
+sirve además en `/openapi.yaml`.
+
+La interfaz visual de Swagger en `/apidocs` no viaja en la imagen por defecto —son ~9 MB de activos
+que no pintan nada en producción, donde además la documentación va apagada. Para levantarla:
+
+```bash
+INSTALAR_DOCS=1 docker compose build && docker compose up -d   # con Docker
+pip install -r requirements-dev.txt                            # sin Docker
+```
+
+y `ENABLE_API_DOCS=1` en el `.env`.
 
 | Método | Ruta | Para qué |
 |---|---|---|
