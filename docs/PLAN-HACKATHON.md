@@ -7,8 +7,13 @@ Es un plan distinto al de [PLAN.md](PLAN.md): aquel corregía defectos del códi
 añade lo que las bases exigen y el proyecto no tiene.
 
 - **Fecha:** 2026-08-15
-- **Bases:** `EnergiAI.pdf`, 5 páginas
+- **Bases:** [`EnergiAI.pdf`](EnergiAI.pdf) — 5 páginas, versionado junto al código para que este plan
+  se pueda contrastar con la fuente sin salir del repositorio
 - **Estado del proyecto:** auditoría cerrada, 150 tests, imagen Docker verificada
+
+> Todo lo que sigue se contrasta contra ese PDF. Cuando el plan dice "las bases piden", es cita de
+> ahí. El `.dockerignore` lo excluye de la imagen: es documentación del equipo, no algo que la
+> aplicación necesite en ejecución.
 
 ---
 

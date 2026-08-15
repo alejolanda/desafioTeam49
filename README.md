@@ -8,6 +8,13 @@ recomendaciones concretas. Soporta **24 países** de América y España, cada un
 > la narrativa y lee las boletas**. Ningún importe sale de un LLM. Esta separación es deliberada:
 > evita que el sistema alucine cifras de ahorro.
 
+**Contexto.** Responde a las bases del hackathon *EnergiAI – Inteligencia para el Consumo
+Energético*, versionadas en [`docs/EnergiAI.pdf`](docs/EnergiAI.pdf).
+
+> ⚠️ **Aún no las cumple del todo.** Faltan el entregable de ciencia de datos —modelo supervisado
+> entrenado y notebook— y la integración con OCI, ambos obligatorios. El estado punto por punto y lo
+> que queda por hacer están en [`docs/PLAN-HACKATHON.md`](docs/PLAN-HACKATHON.md).
+
 ---
 
 ## Arranque rápido
@@ -269,9 +276,10 @@ desafioTeam49/
 │   └── vendor/                 Lucide y la tipografía, servidos localmente
 ├── tests/                      Batería de pruebas
 ├── docs/
+│   ├── EnergiAI.pdf            Bases del hackathon (la fuente)
 │   ├── openapi.yaml            Contrato de la API
 │   ├── PLAN.md                 Plan de la auditoría de código
-│   ├── PLAN-HACKATHON.md       Qué falta para cumplir las bases de EnergiAI
+│   ├── PLAN-HACKATHON.md       Qué falta para cumplir las bases
 │   └── DECISIONES.md           Decisiones técnicas y su porqué
 ├── Dockerfile                  Multi-stage, sin privilegios
 ├── docker-compose.yml
