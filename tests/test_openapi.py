@@ -17,16 +17,25 @@ RAIZ = Path(__file__).resolve().parent.parent
 ESPECIFICACION = yaml.safe_load((RAIZ / "docs" / "openapi.yaml").read_text(encoding="utf-8"))
 
 # Rutas que no forman parte de la API pública: la página del asistente, los
-# archivos estáticos y la propia documentación.
-NO_DOCUMENTADAS = {"/", "/static/<path:filename>", "/openapi.yaml", "/apidocs/", "/apispec.json"}
+# archivos estáticos y la propia especificación.
+NO_DOCUMENTADAS = {"/", "/static/<path:filename>", "/openapi.yaml"}
+
+
+def es_de_la_api(regla) -> bool:
+    """
+    Filtra por el ORIGEN del endpoint, no por la ruta.
+
+    Flasgger registra `/apidocs/`, `/apispec.json` y `/oauth2-redirect.html`,
+    ninguna de las cuales empieza por `/flasgger`: filtrar por prefijo de ruta
+    dejaba pasar las suyas y hacía que estos tests fallaran solo cuando
+    ENABLE_API_DOCS estaba activado. Todos sus endpoints sí cuelgan del
+    blueprint `flasgger`, que es un criterio estable.
+    """
+    return regla.rule not in NO_DOCUMENTADAS and not regla.endpoint.startswith("flasgger")
 
 
 def rutas_de_la_aplicacion() -> set:
-    return {
-        regla.rule
-        for regla in aplicacion.app.url_map.iter_rules()
-        if regla.rule not in NO_DOCUMENTADAS and not regla.rule.startswith("/flasgger")
-    }
+    return {regla.rule for regla in aplicacion.app.url_map.iter_rules() if es_de_la_api(regla)}
 
 
 def test_la_especificacion_es_valida():
@@ -47,7 +56,7 @@ def test_no_se_documentan_endpoints_inexistentes():
 
 def test_los_metodos_coinciden_con_los_registrados():
     for regla in aplicacion.app.url_map.iter_rules():
-        if regla.rule in NO_DOCUMENTADAS or regla.rule.startswith("/flasgger"):
+        if not es_de_la_api(regla):
             continue
         reales = {m.lower() for m in regla.methods} - {"head", "options"}
         documentados = set(ESPECIFICACION["paths"][regla.rule])
