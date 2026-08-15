@@ -369,6 +369,22 @@
     return el ? (el.closest('.form-group') || el) : null;
   }
 
+  function fijarPaisPorCodigo(codigo, intentos){
+    intentos = intentos || 0;
+    const sel = document.getElementById('pais');
+    if(!sel) return false;
+    // El <select> se llena async vía fetch('/api/paises'); si aún no llegó,
+    // se reintenta igual que en fijarPaisPorNombre.
+    const opcion = Array.from(sel.options).find(o => o.value === codigo);
+    if(!opcion){
+      if(intentos < 20){ setTimeout(() => fijarPaisPorCodigo(codigo, intentos + 1), 150); }
+      return false;
+    }
+    sel.value = codigo;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
   function fijarPaisPorNombre(nombre, intentos){
     intentos = intentos || 0;
     const sel = document.getElementById('pais');
@@ -774,28 +790,27 @@
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        // Se redondea a 2 decimales (~1 km) antes de salir del navegador. La
-        // consulta pide zoom=10, que resuelve a nivel de ciudad, así que la
-        // precisión completa no aporta nada y sí expone la posición exacta del
-        // usuario a un tercero.
+        // Se redondea a 2 decimales (~1 km) antes de salir del navegador: la
+        // consulta resuelve a nivel de ciudad, así que la precisión completa no
+        // aporta nada.
         const lat = pos.coords.latitude.toFixed(2);
         const lon = pos.coords.longitude.toFixed(2);
 
-        // Nominatim es un servicio comunitario gratuito y puede tardar o no
-        // responder; sin tope, el asistente se queda esperando indefinidamente.
+        // Va contra nuestro propio backend, no contra Nominatim directamente:
+        // así la aplicación puede identificarse como exige su política de uso,
+        // cachear la respuesta, y devolver el código ISO del país en vez de su
+        // nombre traducido (ver src/geo.py).
         const control = new AbortController();
-        const temporizador = setTimeout(() => control.abort(), 8000);
+        const temporizador = setTimeout(() => control.abort(), 10000);
 
-        fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=10&addressdetails=1',
-              { signal: control.signal })
-          .then(r => { clearTimeout(temporizador); return r.json(); })
+        fetch('/api/ubicacion?lat=' + lat + '&lon=' + lon, { signal: control.signal })
+          .then(r => { clearTimeout(temporizador); if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
           .then(data => {
-            const addr = data.address || {};
-            const comuna = addr.city || addr.town || addr.village || addr.municipality || addr.county || '';
-            const region = addr.state || addr.region || '';
-            const pais = addr.country || '';
+            const comuna = data.comuna || '';
+            const region = data.region || '';
+            const pais = data.pais_nombre || '';
             if(!comuna && !region && !pais){ renderUbicacionManual(); return; }
-            mostrarConfirmacionUbicacion(comuna, region, pais);
+            mostrarConfirmacionUbicacion(comuna, region, pais, data.pais_codigo);
           })
           .catch(() => { clearTimeout(temporizador); renderUbicacionManual(); });
       },
@@ -810,7 +825,7 @@
     );
   }
 
-  function mostrarConfirmacionUbicacion(comuna, region, pais){
+  function mostrarConfirmacionUbicacion(comuna, region, pais, paisCodigo){
     const texto = 'Detecté que estás en ' + [comuna, region, pais].filter(Boolean).join(', ') + '. ¿Es correcto?';
     statusEl.textContent = 'Denji: ' + texto;
     hablar(texto);
@@ -818,7 +833,12 @@
     const si = document.createElement('button'); si.className='denji-opt-btn'; si.textContent='Sí, es correcto';
     si.onclick = () => {
       respuestas.pais = pais; respuestas.estado_provincia = region; respuestas.comuna = comuna;
-      escribirValor('pais', pais);
+      // Con código ISO se fija el <select> directamente. El emparejamiento por
+      // nombre solo queda como respaldo: Nominatim devolvía el país en el
+      // idioma del lugar ("United States") y la lista está en español
+      // ("Estados Unidos"), así que para varios países no encontraba la opción
+      // y el selector se quedaba vacío sin avisar de nada.
+      if(!(paisCodigo && fijarPaisPorCodigo(paisCodigo))) escribirValor('pais', pais);
       escribirValor('estado_provincia', region);
       goNext();
     };

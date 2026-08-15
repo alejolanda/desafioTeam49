@@ -12,6 +12,7 @@ from flask_limiter.util import get_remote_address
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src import calculos
+from src import geo
 from src import llm as groq
 
 load_dotenv()
@@ -208,6 +209,34 @@ def _resolver_tarifa(datos: dict) -> tuple[float, dict]:
 @app.route("/api/paises")
 def paises():
     return jsonify(calculos.PAISES)
+
+
+@app.route("/api/ubicacion")
+@limiter.limit("30 per hour")
+def ubicacion():
+    """
+    Geocodificación inversa: coordenadas → ciudad, región y código de país.
+
+    Actúa de intermediario ante Nominatim para poder identificar la aplicación
+    como exige su política de uso, cachear las respuestas y devolver el código
+    ISO del país en vez de su nombre localizado. Antes lo llamaba el navegador
+    directamente (ver docs/PLAN.md, tarea 5.8).
+    """
+    lat = groq.numero_valido(request.args.get("lat"), -90, 90)
+    lon = groq.numero_valido(request.args.get("lon"), -180, 180)
+
+    if lat is None or lon is None:
+        return jsonify({"error": "Coordenadas inválidas."}), 400
+
+    if not geo.disponible():
+        app.logger.warning("NOMINATIM_CONTACTO sin configurar: no se geocodifica.")
+        return jsonify({"error": "La detección automática de ubicación no está configurada."}), 503
+
+    try:
+        return jsonify(geo.ubicacion_desde_coordenadas(lat, lon))
+    except geo.GeocodificacionNoDisponible as error:
+        app.logger.warning("Nominatim no respondió: %s", error)
+        return jsonify({"error": "No pudimos determinar tu ubicación."}), 503
 
 
 @app.route("/api/interpretar-campo", methods=["POST"])

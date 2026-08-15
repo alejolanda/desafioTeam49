@@ -63,6 +63,7 @@ Las seis se resolvieron por la opción recomendada.
 | 5.4 `/api/comparar` con payload incompleto | ✅ Adelantada |
 | 5.5 Fijar el CDN | ✅ Hecha — **vendorizado**: la página ya no hace ninguna petición externa |
 | 5.6 Desacoplar `denji.js` | ✅ Resuelta de otra forma — ver nota |
+| 5.8 Geolocalización a un tercero | ✅ Hecha — proxy en el backend; falta poner `NOMINATIM_CONTACTO` |
 | 5.7 Sincronizar el README | → movida a la Fase 7 |
 
 > **Sobre 0.1 y 1.2.** El trabajo se aisló en la rama `vllanten` para no forzar un re-clone al equipo.
@@ -350,21 +351,27 @@ renombra un ID el asistente cae en silencio al emparejamiento por texto. Se reso
 `tests/test_contrato_frontend.py`, que falla en CI si `denji.js` o `app.js` apuntan a un ID que ya no
 está en la plantilla.
 
-### 5.8 Geolocalización a un tercero *(hallazgo nuevo)*
-`denji.js` envía las coordenadas del usuario a `nominatim.openstreetmap.org`
-([`denji.js:777`](../static/js/denji.js#L777)) para resolver la ciudad. Tres problemas, ya corregidos
-en lo esencial:
+### 5.8 Geolocalización a un tercero *(hallazgo nuevo — cerrada)*
+`denji.js` enviaba las coordenadas del usuario directamente a
+`nominatim.openstreetmap.org` para resolver la ciudad. La consulta pasa ahora por el backend
+([`src/geo.py`](../src/geo.py) + `GET /api/ubicacion`), lo que resuelve cinco cosas de una vez:
 
-- **Se avisaba a medias.** El texto decía que el navegador pediría permiso, pero no que la posición
-  saliera hacia un tercero. Ahora se dice.
-- **Precisión innecesaria.** Se mandaba la coordenada completa para una consulta con `zoom=10`, que
-  resuelve a nivel de ciudad. Ahora se redondea a 2 decimales (~1 km).
-- **Sin timeout.** Nominatim es un servicio comunitario gratuito; si no responde, el asistente se
-  quedaba esperando. Ahora aborta a los 8 s y cae al ingreso manual.
+- **Identificación.** La política de uso de Nominatim exige un `User-Agent` que identifique la
+  aplicación y dé una vía de contacto; un navegador no puede fijar esa cabecera y un servidor sí.
+- **El país ya se autocompleta.** Nominatim devuelve el nombre del país en el idioma del lugar, y
+  `fijarPaisPorNombre()` lo comparaba contra la lista en español: para "United States" contra
+  "Estados Unidos" no encontraba la opción y **el selector se quedaba vacío sin avisar**. Ahora se
+  devuelve el `country_code` ISO, que mapea directo a las claves de `calculos.PAISES`.
+- **Caché** por coordenada redondeada, sobre un servicio comunitario gratuito.
+- **Un tope de una petición por segundo** para toda la aplicación, como pide la política.
+- **Privacidad.** El usuario acepta compartir su ubicación con esta aplicación, no con un tercero.
+  Se sigue redondeando a 2 decimales (~1 km), coherente con el `zoom=10` que resuelve a nivel de
+  ciudad, y se avisa en la interfaz.
 
-**Pendiente:** la política de uso de Nominatim pide identificar la aplicación por `User-Agent`, algo
-que un navegador no puede fijar. Lo correcto sería redirigir la consulta por el backend, que sí puede
-identificarse y cachear. Queda como tarea aparte porque implica un endpoint nuevo.
+> **Falta un valor para que funcione.** `NOMINATIM_CONTACTO` está vacío en `.env.example` y hay que
+> poner ahí el alias de correo del equipo. Mientras no esté, el backend **no llama** al servicio:
+> responde 503 y la aplicación pide la ubicación a mano. Es deliberado — es preferible perder la
+> autodetección a hacer peticiones sin identificar contra un servicio gratuito ajeno.
 
 ---
 
