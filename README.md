@@ -36,7 +36,11 @@ docker compose up -d --force-recreate   # recargar tras cambiar el .env
 ```
 
 El código va montado en solo lectura con recarga automática: al editar `app.py` o `src/`, gunicorn se
-reinicia solo. Solo hace falta `--build` si cambian `requirements.lock` o el `Dockerfile`.
+reinicia solo. Ahora bien:
+
+- **Cambiaste el `.env`** → `docker compose up -d --force-recreate`. El entorno se lee al crear el
+  contenedor, no en cada petición, y la recarga automática solo vigila el código.
+- **Cambiaste `requirements.lock` o el `Dockerfile`** → hace falta `--build`.
 
 ### Sin Docker
 
@@ -62,7 +66,9 @@ Todas las variables viven en `.env`, que **nunca** se versiona ni entra en la im
 | `NOMINATIM_CONTACTO` | Correo de contacto del equipo | Para detectar la ubicación |
 | `GROQ_TIMEOUT_S` | Segundos antes de abandonar una llamada al modelo | No (10) |
 | `RATELIMIT_STORAGE_URI` | Redis, si se usa más de un worker | No (memoria) |
-| `ENABLE_API_DOCS` | Sirve `/apidocs` y `/openapi.yaml` | No (apagado) |
+| `ENABLE_API_DOCS` | Sirve el contrato en `/openapi.yaml` | No (apagado) |
+| `HOST_PORT` | Puerto del host, separado del interno | No (5000) |
+| `INSTALAR_DOCS` | Mete Swagger UI en la imagen al construirla | No (0) |
 | `FLASK_DEBUG` | **Dejar en 0.** El depurador de Werkzeug permite ejecución remota de código | No (0) |
 
 **La aplicación funciona sin ninguna clave.** Sin `GROQ_API_KEY` el diagnóstico se calcula igual —es
@@ -152,7 +158,7 @@ sin tope, cualquiera podría agotar la cuota.
 ```bash
 pip install -r requirements-dev.txt
 ruff check .          # linter
-pytest                # 141 tests
+pytest                # toda la batería
 pytest --cov=src --cov=app --cov-report=term
 ```
 
@@ -192,7 +198,7 @@ desafioTeam49/
 │   ├── js/denji.js             Asistente guiado
 │   ├── img/
 │   └── vendor/                 Lucide y la tipografía, servidos localmente
-├── tests/                      141 tests
+├── tests/                      Batería de pruebas
 ├── docs/
 │   ├── openapi.yaml            Contrato de la API
 │   ├── PLAN.md                 Plan de la auditoría de código
