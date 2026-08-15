@@ -27,20 +27,8 @@ La app queda en **http://localhost:5000**.
 > el interno: `HOST_PORT=5001 docker compose up`, o desactiva *Ajustes → General → AirDrop y Handoff →
 > Receptor AirPlay*.
 
-Comandos habituales:
-
-```bash
-docker compose logs -f              # ver los logs
-docker compose down                 # detener
-docker compose up -d --force-recreate   # recargar tras cambiar el .env
-```
-
 El código va montado en solo lectura con recarga automática: al editar `app.py` o `src/`, gunicorn se
-reinicia solo. Ahora bien:
-
-- **Cambiaste el `.env`** → `docker compose up -d --force-recreate`. El entorno se lee al crear el
-  contenedor, no en cada petición, y la recarga automática solo vigila el código.
-- **Cambiaste `requirements.lock` o el `Dockerfile`** → hace falta `--build`.
+reinicia solo. Para todo lo demás, ver [Comandos](#comandos) al final.
 
 ### Sin Docker
 
@@ -178,16 +166,6 @@ docker run --rm -v "$PWD:/app" -w /app python:3.12-slim \
 Úsalo si tu Python local no es 3.12: la batería pasa igual en 3.9, pero solo esta vía reproduce
 exactamente lo que corre en la CI.
 
-### Otros comandos
-
-```bash
-pytest tests/test_calculos.py          # un solo archivo
-pytest -k tarifa                       # los que coincidan con un nombre
-pytest -q --cov=src --cov=app --cov-report=term    # con cobertura
-ruff check .                           # linter
-ruff check . --fix                     # y que corrija lo que pueda
-```
-
 Algunos tests solo corren con `ENABLE_API_DOCS=1` —los de la interfaz visual de la API— y se saltan
 en caso contrario. Ninguno llama a Groq ni a OpenStreetMap: la batería funciona sin claves y sin red.
 
@@ -237,6 +215,100 @@ desafioTeam49/
 ├── requirements.txt            Dependencias directas
 ├── requirements.lock           Árbol completo fijado (build reproducible)
 └── requirements-dev.txt
+```
+
+---
+
+## Comandos
+
+Referencia de lo que se usa a diario. Los de Docker asumen que estás en la raíz del proyecto.
+
+### Levantar y parar
+
+```bash
+docker compose up -d                 # arrancar en segundo plano
+docker compose up                    # arrancar viendo los logs
+docker compose down                  # parar y eliminar el contenedor
+docker compose restart               # reiniciar sin recrear
+docker compose ps                    # ¿está viva? ¿en qué puerto?
+docker compose logs -f               # seguir los logs en vivo
+docker compose logs --tail 50 app    # las últimas 50 líneas
+```
+
+### Cuándo hace falta reconstruir
+
+Editar `app.py`, `src/`, `static/` o `templates/` **no requiere nada**: el código va montado y
+gunicorn recarga solo. El resto sí:
+
+| Cambiaste… | Comando |
+|---|---|
+| El `.env` | `docker compose up -d --force-recreate` |
+| `requirements.lock` o el `Dockerfile` | `docker compose up -d --build` |
+| Quieres Swagger UI en la imagen | `INSTALAR_DOCS=1 docker compose build && docker compose up -d` |
+
+El entorno se lee al **crear** el contenedor, no en cada petición: por eso un cambio en el `.env`
+necesita `--force-recreate` y no basta con `restart`.
+
+### Pruebas y linter
+
+```bash
+source .venv/bin/activate            # una vez por terminal
+
+pytest                               # toda la batería
+pytest tests/test_calculos.py        # un solo archivo
+pytest tests/test_calculos.py::test_hervidor_coincide_con_la_termodinamica   # un solo test
+pytest -k tarifa                     # los que coincidan con un nombre
+pytest -x                            # parar en el primer fallo
+pytest -q --cov=src --cov=app --cov-report=term          # con cobertura
+pytest -q --cov=src --cov-report=html && open htmlcov/index.html   # cobertura navegable
+
+ruff check .                         # linter
+ruff check . --fix                   # y que corrija lo que pueda
+```
+
+### Comprobar que funciona
+
+```bash
+curl -s localhost:5001/health | python3 -m json.tool     # estado y qué hay configurado
+curl -s localhost:5001/api/paises | python3 -m json.tool # catálogo de países
+
+curl -s -X POST localhost:5001/api/analisis-energetico \
+  -H 'Content-Type: application/json' \
+  -d '{"pais":"CL","tv":2,"tv_frecuencia":21,"refrigerador":1}' | python3 -m json.tool
+```
+
+`/health` dice de un vistazo si las funciones opcionales están activas:
+
+```json
+{"estado":"ok","paises":24,"artefactos":31,
+ "groq_configurado":true,"geocodificacion_configurada":true}
+```
+
+### Diagnosticar problemas
+
+```bash
+docker compose logs app | grep -i "GROQ_API_KEY rechazada"   # ¿la clave caducó?
+docker compose logs app | grep -iE "error|warning"           # todo lo anómalo
+docker compose exec app sh                                   # entrar al contenedor
+docker compose exec app printenv | grep -c GROQ              # ¿llegaron las variables?
+```
+
+En el navegador, para el asistente de voz —consola con `Cmd+Option+J`—:
+
+```js
+denjiDiagnostico()            // navegador, permisos del micrófono, idioma
+denjiUltimaTranscripcion      // lo último que se reconoció
+```
+
+Y filtra por `[denji:voz]` para seguir cada fase de la escucha.
+
+### Git
+
+```bash
+git status --short
+git log --oneline -10
+git diff                             # cambios sin preparar
+git diff --cached                    # los que ya están preparados
 ```
 
 ---
