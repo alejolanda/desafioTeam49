@@ -193,6 +193,48 @@ def test_interpretar_campo_sin_clave_devuelve_un_valor_de_la_lista(monkeypatch):
     assert cuerpo["valor_mapeado"] in ["Casa", "Casa pareada", "Departamento", "Casa móvil", "Otro"]
 
 
+# ── Clave rechazada: configuración, no excepción ──────────────────────────────
+
+class ErrorDeAutenticacion(Exception):
+    """Imita el 401 que devuelve el SDK de Groq."""
+    status_code = 401
+
+
+@pytest.mark.parametrize(
+    "error,esperado",
+    [
+        (ErrorDeAutenticacion("Error code: 401 - invalid_api_key"), True),
+        (Exception("Error code: 401 - {'code': 'invalid_api_key'}"), True),
+        (Exception("Invalid API Key"), True),
+        (TimeoutError("la API no responde"), False),
+        (Exception("rate limit exceeded"), False),
+    ],
+)
+def test_se_distingue_la_clave_invalida_de_otros_fallos(error, esperado):
+    assert llm.es_error_de_credenciales(error) is esperado
+
+
+def test_una_clave_rechazada_se_marca_aparte_y_no_rompe_el_calculo(monkeypatch, caplog):
+    """
+    Un 401 se repite en CADA petición: volcar la traza completa cada vez entierra
+    el mensaje accionable. Se registra una línea clara y el diagnóstico sigue.
+    """
+    monkeypatch.setenv("GROQ_API_KEY", "clave-caducada")
+
+    def rechaza(*args, **kwargs):
+        raise ErrorDeAutenticacion("Error code: 401 - invalid_api_key")
+
+    monkeypatch.setattr(aplicacion.groq, "obtener_llm", rechaza)
+
+    with caplog.at_level("ERROR"):
+        resultado = aplicacion.generar_narrativa({"total_kwh_mes": 300, "simbolo_moneda": "$"})
+
+    assert resultado["fuente"] == "respaldo_credencial_invalida"
+    assert resultado["texto"], "el usuario debe recibir su diagnóstico igual"
+    assert ".env" in caplog.text, "el log debe decir cómo arreglarlo"
+    assert "Traceback" not in caplog.text, "un 401 no necesita traza en cada petición"
+
+
 def test_el_limite_de_tasa_corta_el_abuso(monkeypatch):
     """
     Regresión de 3.8: los endpoints que gastan cuota de Groq no pedían

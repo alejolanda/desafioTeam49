@@ -138,6 +138,15 @@ def generar_narrativa(resumen: dict) -> dict:
         respuesta = llm.invoke([SystemMessage(content=SYSTEM_PROMPT_NARRADOR), HumanMessage(content=mensaje)])
         return {"texto": respuesta.content.strip(), "fuente": "llm"}
     except Exception as error:
+        if groq.es_error_de_credenciales(error):
+            # Sin traza: se repite en cada petición y siempre es la misma pila.
+            # Lo accionable es el mensaje, no dónde se lanzó.
+            app.logger.error(
+                "GROQ_API_KEY rechazada (401). El diagnóstico se calcula igual; "
+                "solo se pierde la narrativa. Actualiza la clave en el .env."
+            )
+            return {"texto": _narrativa_de_respaldo(resumen), "fuente": "respaldo_credencial_invalida"}
+
         app.logger.warning("Groq falló al generar la narrativa: %s", error, exc_info=True)
         return {"texto": _narrativa_de_respaldo(resumen), "fuente": "respaldo_error"}
 
@@ -351,7 +360,10 @@ def interpretar_campo():
         return jsonify({"valor_mapeado": valor, "fuente": "llm"})
     except Exception as error:
         # El detalle va al log del servidor, no al cliente.
-        app.logger.warning("Groq falló al interpretar el campo libre: %s", error, exc_info=True)
+        if groq.es_error_de_credenciales(error):
+            app.logger.error("GROQ_API_KEY rechazada (401) al interpretar el campo libre.")
+        else:
+            app.logger.warning("Groq falló al interpretar el campo libre: %s", error, exc_info=True)
         return jsonify({"valor_mapeado": "Casa", "fuente": "fallback_error"})
 
 
@@ -637,6 +649,14 @@ RESPONDE SOLO con este JSON exacto, sin texto adicional:
     except groq.GroqNoConfigurado:
         return jsonify({"error": "El análisis de boletas no está disponible en este momento."}), 503
     except Exception as error:
+        if groq.es_error_de_credenciales(error):
+            app.logger.error(
+                "GROQ_API_KEY rechazada (401) al leer una boleta. Actualiza la clave en el .env."
+            )
+            return jsonify({
+                "error": "La lectura de boletas no está disponible en este momento. "
+                         "Ingresa el consumo a mano."
+            }), 503
         # El detalle va al log, no al cliente: el mensaje de excepción puede
         # incluir rutas del servidor o fragmentos de la petición a la API.
         app.logger.exception("Error al procesar la boleta: %s", error)

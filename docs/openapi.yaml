@@ -547,8 +547,11 @@ components:
         narrativa: { type: string }
         narrativa_fuente:
           type: string
-          enum: [llm, respaldo_sin_api_key, respaldo_error]
-          description: Distingue el texto del modelo del de respaldo.
+          enum: [llm, respaldo_sin_api_key, respaldo_credencial_invalida, respaldo_error]
+          description: |
+            Distingue el texto del modelo del de respaldo.
+            `respaldo_credencial_invalida` significa que la clave fue rechazada:
+            el diagnóstico es correcto igual, solo falta la redacción.
         costo_estimado_mensual:
           type: number
           deprecated: true

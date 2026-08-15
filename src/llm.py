@@ -92,6 +92,24 @@ def obtener_llm(
     )
 
 
+def es_error_de_credenciales(error: Exception) -> bool:
+    """
+    Distingue "la clave no sirve" de "la llamada falló".
+
+    Son problemas de naturaleza distinta y merecen tratamiento distinto en el
+    log: un 401 es de configuración, se repite en cada petición y se arregla
+    editando el `.env`. Volcar la traza completa cada vez solo entierra el
+    mensaje accionable bajo treinta líneas de pila que siempre son iguales.
+
+    Se detecta por el código de estado y el texto en vez de importar la
+    excepción del SDK de Groq, que es una dependencia transitiva.
+    """
+    if getattr(error, "status_code", None) == 401:
+        return True
+    texto = str(error).lower()
+    return "invalid_api_key" in texto or "invalid api key" in texto
+
+
 def extraer_json(texto: str) -> dict | None:
     """
     Extrae el primer objeto JSON de una respuesta del modelo.
