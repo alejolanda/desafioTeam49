@@ -155,12 +155,41 @@ sin tope, cualquiera podría agotar la cuota.
 
 ## Desarrollo
 
+### Ejecutar la batería de pruebas
+
+**Con un entorno local** (rápido, para iterar):
+
 ```bash
+python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
-ruff check .          # linter
-pytest                # toda la batería
-pytest --cov=src --cov=app --cov-report=term
+pytest
 ```
+
+> El `venv/` que hay en el repositorio es de Windows y no sirve en macOS ni Linux. De ahí que el
+> entorno nuevo se llame `.venv`, con punto: son directorios distintos y ambos están ignorados por git.
+
+**Dentro de un contenedor** (misma versión de Python que la CI, sin instalar nada):
+
+```bash
+docker run --rm -v "$PWD:/app" -w /app python:3.12-slim \
+  sh -c "pip install -q -r requirements-dev.txt && pytest"
+```
+
+Úsalo si tu Python local no es 3.12: la batería pasa igual en 3.9, pero solo esta vía reproduce
+exactamente lo que corre en la CI.
+
+### Otros comandos
+
+```bash
+pytest tests/test_calculos.py          # un solo archivo
+pytest -k tarifa                       # los que coincidan con un nombre
+pytest -q --cov=src --cov=app --cov-report=term    # con cobertura
+ruff check .                           # linter
+ruff check . --fix                     # y que corrija lo que pueda
+```
+
+Algunos tests solo corren con `ENABLE_API_DOCS=1` —los de la interfaz visual de la API— y se saltan
+en caso contrario. Ninguno llama a Groq ni a OpenStreetMap: la batería funciona sin claves y sin red.
 
 La CI ejecuta linter y tests en cada PR, construye la imagen de Docker, la arranca y sondea
 `/health`, y falla si alguien versiona un `.env` o un `.zip`.
