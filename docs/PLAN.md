@@ -65,6 +65,16 @@ Las seis se resolvieron por la opción recomendada.
 | 5.6 Desacoplar `denji.js` | ✅ Resuelta de otra forma — ver nota |
 | 5.8 Geolocalización a un tercero | ✅ Hecha — proxy en el backend; falta poner `NOMINATIM_CONTACTO` |
 | 5.7 Sincronizar el README | → movida a la Fase 7 |
+| 6.1 Lockfile y versión de Python única | ✅ Hecha — 53 paquetes fijados, build reproducible |
+| 6.2 Dockerfile multi-stage | ✅ Hecha — 288 MB, sin compiladores, usuario sin privilegios |
+| 6.3 `.dockerignore` | ✅ Hecha |
+| 6.4 gunicorn como entrypoint | ✅ Hecha |
+| 6.5 Configuración por entorno | ✅ Hecha — verificado que la imagen no contiene secretos |
+| 6.6 `/health` y `HEALTHCHECK` | ✅ Hecha — Docker reporta `healthy` |
+| 6.7 `uploads/` como tmpfs | ✅ Hecha |
+| 6.8 `docker-compose.yml` | ✅ Hecha |
+| 6.9 Build de la imagen en CI | ✅ Hecha — construye, arranca y sondea |
+| 6.10 Devcontainer alineado a 3.12 | ✅ Hecha — el README queda para la Fase 7 |
 
 > **Sobre 0.1 y 1.2.** El trabajo se aisló en la rama `vllanten` para no forzar un re-clone al equipo.
 > Eso resuelve la 1.1 pero **no** la 1.2: los zips viven en `e4cf47e`, ancestro de `main` y de

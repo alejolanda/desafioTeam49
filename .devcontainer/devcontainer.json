@@ -1,9 +1,22 @@
 {
-  "name": "VolticvS-test",
-  "image": "mcr.microsoft.com/devcontainers/python:3.11",
-  "postCreateCommand": "pip install -r requirements.txt",
+  // Python 3.12, igual que el Dockerfile y la CI. Antes fijaba 3.11 mientras el
+  // README pedia 3.12+ y los .pyc del repo eran 3.13: tres versiones distintas.
+  //
+  // Se mantiene separado de docker-compose.yml a proposito, porque sirven para
+  // cosas distintas: este entorno es para EDITAR (necesita escritura sobre el
+  // codigo y las dependencias de desarrollo), mientras que compose es para
+  // EJECUTAR la app como en produccion, con el codigo montado en solo lectura.
+  // Lo unico que no pueden divergir es la version de Python.
+  "name": "VolticvS-dev",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postCreateCommand": "pip install -r requirements-dev.txt",
   "forwardPorts": [5000],
   "portsAttributes": {
     "5000": { "label": "VolticvS App", "onAutoForward": "openPreview" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["charliermarsh.ruff", "ms-python.python"]
+    }
   }
 }

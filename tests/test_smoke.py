@@ -38,3 +38,44 @@ def test_paises_excluye_claves_de_metadatos(cliente):
 def test_artefacto_desconocido_es_rechazado():
     with pytest.raises(ValueError):
         calculos.consumo_mensual_standby("artefacto_que_no_existe", horas_uso_diario=1, tarifa=150)
+
+
+# ── Sonda de salud (tarea 6.6) ────────────────────────────────────────────────
+
+def test_health_responde_sin_llamar_a_servicios_externos(cliente, monkeypatch):
+    """
+    La sonda corre cada 30 s desde el HEALTHCHECK del contenedor: no puede
+    gastar cuota de Groq ni pegarle a Nominatim.
+    """
+    def no_debe_llamarse(*args, **kwargs):
+        raise AssertionError("/health no debe consultar servicios externos")
+
+    monkeypatch.setattr(aplicacion.groq, "obtener_llm", no_debe_llamarse)
+    monkeypatch.setattr(aplicacion.geo, "ubicacion_desde_coordenadas", no_debe_llamarse)
+
+    respuesta = cliente.get("/health")
+    datos = respuesta.get_json()
+
+    assert respuesta.status_code == 200
+    assert datos["estado"] == "ok"
+    assert datos["paises"] > 0
+    assert datos["artefactos"] > 0
+
+
+def test_health_no_expone_credenciales(cliente):
+    cuerpo = cliente.get("/health").get_data(as_text=True)
+    assert "gsk_" not in cuerpo
+    # Informa si estan configuradas, nunca su valor.
+    assert isinstance(cliente.get("/health").get_json()["groq_configurado"], bool)
+
+
+def test_health_esta_exenta_del_limite_de_tasa(cliente):
+    """Si la sonda recibiera 429, el orquestador daria el contenedor por muerto."""
+    aplicacion.limiter.enabled = True
+    try:
+        codigos = [cliente.get("/health").status_code for _ in range(40)]
+    finally:
+        aplicacion.limiter.enabled = False
+        aplicacion.limiter.reset()
+
+    assert set(codigos) == {200}, "la sonda de salud no debe estar limitada"

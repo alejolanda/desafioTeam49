@@ -1,0 +1,50 @@
+# Contexto de build. Sin esto arrastraria ~50 MB de basura: el venv de Windows
+# (3.907 archivos, inservible en Linux), los zips del proyecto y el .git.
+
+# Entornos virtuales — ademas el del repo es de Windows (Scripts/, Lib/)
+venv/
+.venv/
+env/
+
+# Secretos: la configuracion se inyecta en tiempo de ejecucion, nunca se hornea
+.env
+*.pem
+*.key
+
+# Empaquetados del proyecto (44 MB, contienen el .env filtrado)
+*.zip
+
+# Historia de git
+.git/
+.github/
+.gitignore
+
+# Artefactos de Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Herramientas de desarrollo que no corren dentro de la imagen
+tests/
+conftest.py
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+requirements-dev.txt
+
+# Documentacion y entorno de desarrollo
+docs/
+.devcontainer/
+UI_DESIGN.md
+
+# Boletas subidas: efimeras, y el contenedor las monta como tmpfs
+uploads/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+*.log

@@ -206,6 +206,41 @@ def _resolver_tarifa(datos: dict) -> tuple[float, dict]:
     return tarifa, ficha
 
 
+@app.route("/health")
+@limiter.exempt
+def health():
+    """
+    Sonda de vida para el HEALTHCHECK del contenedor y el balanceador.
+
+    Deliberadamente NO llama a Groq ni a Nominatim: una sonda que se ejecuta
+    cada 30 s no puede gastar cuota de un servicio de pago ni de uno gratuito
+    ajeno. Solo comprueba que la aplicación levantó y que la tabla de
+    referencia se cargó, que es lo que de verdad puede fallar al arrancar.
+
+    Queda exenta del límite de tasa: si no, el propio healthcheck acabaría
+    recibiendo 429 y el orquestador daría el contenedor por muerto.
+    """
+    try:
+        paises_cargados = len(calculos.PAISES)
+        artefactos = len(calculos.REFERENCIA["electrodomesticos"])
+    except Exception as error:
+        app.logger.exception("La tabla de referencia no está disponible: %s", error)
+        return jsonify({"estado": "error", "detalle": "datos de referencia no disponibles"}), 503
+
+    if not paises_cargados or not artefactos:
+        return jsonify({"estado": "error", "detalle": "datos de referencia vacíos"}), 503
+
+    return jsonify({
+        "estado": "ok",
+        "paises": paises_cargados,
+        "artefactos": artefactos,
+        # Informativo: permite ver desde fuera qué funciones opcionales están
+        # configuradas, sin exponer ninguna credencial.
+        "groq_configurado": groq.disponible(),
+        "geocodificacion_configurada": geo.disponible(),
+    })
+
+
 @app.route("/api/paises")
 def paises():
     return jsonify(calculos.PAISES)
