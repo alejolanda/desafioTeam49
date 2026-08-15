@@ -243,6 +243,13 @@ if DOCS_HABILITADAS:
                 "headers": [],
                 "specs": [{"endpoint": "spec", "route": "/apispec.json"}],
                 "specs_route": "/apidocs/",
+                # OBLIGATORIO: pasar un `config` propio sustituye al de flasgger
+                # por completo, no lo completa. Sin esta clave su blueprint se
+                # registra en /static, choca con el de Flask —que gana por estar
+                # primero— y la página de Swagger carga pero sin ninguno de sus
+                # activos: 404 en swagger-ui.css, swagger-ui-bundle.js y demás.
+                "static_url_path": "/flasgger_static",
+                "swagger_ui": True,
             })
     except (ImportError, FileNotFoundError) as error:
         app.logger.info("Sin interfaz visual de la API (%s); /openapi.yaml se sirve igual.", error)

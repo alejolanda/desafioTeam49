@@ -5,6 +5,7 @@ Una especificación escrita a mano se despega del código a la primera semana.
 Estos tests la anclan: si se añade un endpoint sin documentarlo, o se documenta
 uno que ya no existe, falla la CI en vez de descubrirse en producción.
 """
+import re
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,38 @@ def test_la_documentacion_esta_apagada_por_defecto():
     assert os.getenv("ENABLE_API_DOCS", "0") != "1" or aplicacion.DOCS_HABILITADAS
     if not aplicacion.DOCS_HABILITADAS:
         assert aplicacion.app.test_client().get("/openapi.yaml").status_code == 404
+
+
+@pytest.mark.skipif(not aplicacion.DOCS_HABILITADAS, reason="requiere ENABLE_API_DOCS=1")
+def test_la_interfaz_visual_no_pisa_los_archivos_estaticos_de_la_app():
+    """
+    Regresión: pasar un `config` propio a flasgger SUSTITUYE su configuración
+    por defecto, no la completa. Al omitir `static_url_path`, su blueprint se
+    registraba en `/static` y chocaba con el de Flask, que gana por estar
+    registrado antes. La página de Swagger cargaba pero sus activos daban 404.
+    """
+    rutas_flasgger = {
+        regla.rule
+        for regla in aplicacion.app.url_map.iter_rules()
+        if regla.endpoint.startswith("flasgger")
+    }
+    assert "/static/<path:filename>" not in rutas_flasgger, "flasgger volvió a pisar /static"
+
+
+@pytest.mark.skipif(not aplicacion.DOCS_HABILITADAS, reason="requiere ENABLE_API_DOCS=1")
+def test_todos_los_activos_de_la_interfaz_visual_se_sirven():
+    """No basta con que /apidocs devuelva 200: sin sus activos, la página está en blanco."""
+    cliente = aplicacion.app.test_client()
+    pagina = cliente.get("/apidocs/")
+    if pagina.status_code == 501:
+        pytest.skip("flasgger no está instalado en este entorno")
+
+    assert pagina.status_code == 200
+    activos = re.findall(r'(?:src|href)="(/[^"]+\.(?:css|js))"', pagina.get_data(as_text=True))
+    assert activos, "la página de Swagger no referencia ningún activo"
+
+    for ruta in activos:
+        assert cliente.get(ruta).status_code == 200, f"activo no servido: {ruta}"
 
 
 def test_el_catalogo_de_comparacion_se_declara_como_ejemplo():
