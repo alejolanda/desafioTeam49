@@ -8,8 +8,10 @@
     "computador_escritorio": {"watts_uso": 150, "watts_standby": 2, "nombre": "Computador de escritorio"},
     "television": {"watts_uso": 100, "watts_standby": 1, "nombre": "Televisor"},
     "router_wifi": {"watts_uso": 8, "watts_standby": 8, "nombre": "Router WiFi (siempre encendido)"},
-    "refrigerador": {"watts_uso": 150, "watts_standby": 150, "nombre": "Refrigerador (consumo promedio, funciona 24/7 por ciclos)"},
-    "congeladora": {"watts_uso": 200, "watts_standby": 200, "nombre": "Congeladora / freezer (consumo promedio, funciona 24/7 por ciclos)"},
+    "refrigerador": {"watts_uso": 50, "watts_standby": 50, "nombre": "Refrigerador", "_nota": "Potencia MEDIA ya descontado el ciclado del compresor (~1/3 del tiempo encendido). Antes figuraban 150 W, que es la potencia del compresor en marcha: aplicada 24/7 daba 108 kWh/mes, unas 3 veces el consumo real de un equipo domestico."},
+    "congeladora": {"watts_uso": 62, "watts_standby": 62, "nombre": "Congeladora / freezer", "_nota": "Potencia MEDIA ya descontado el ciclado del compresor. Antes figuraban 200 W (potencia del compresor en marcha)."},
+    "aire_acondicionado": {"watts_uso": 900, "watts_standby": 1, "nombre": "Aire acondicionado", "_nota": "Equivale a un split de 9000 BTU estandar, coherente con 'categorias_comparables'."},
+    "termotanque_electrico": {"watts_uso": 1500, "watts_standby": 0, "nombre": "Termotanque / calentador de agua electrico"},
     "microondas": {"watts_uso": 1200, "watts_standby": 3, "nombre": "Microondas"},
     "porton_electrico": {"watts_uso": 300, "watts_standby": 2, "nombre": "Motor de portón eléctrico"},
     "campana_extractora": {"watts_uso": 120, "watts_standby": 0, "nombre": "Campana extractora de cocina"},
@@ -23,7 +25,7 @@
     "plancha_ropa": {"watts_uso": 1000, "watts_standby": 0, "nombre": "Plancha de ropa"},
     "secador_pelo": {"watts_uso": 1200, "watts_standby": 0, "nombre": "Secador de pelo"},
     "aspiradora": {"watts_uso": 1400, "watts_standby": 0, "nombre": "Aspiradora"},
-    "lavadora": {"watts_uso": 500, "watts_standby": 0, "nombre": "Lavadora de ropa"},
+    "lavadora": {"watts_uso": 1000, "watts_standby": 0, "nombre": "Lavadora de ropa", "_nota": "Potencia MEDIA de un ciclo mixto (~2000 W mientras calienta el agua + ~200 W en agitado y centrifugado), no la potencia del motor. A 1 h por ciclo da ~1 kWh, dentro del rango habitual de 0.5-2 kWh segun temperatura. Antes figuraban 500 W (solo motor, lavado en frio). SIN VERIFICAR: sustituir por el dato de una etiqueta energetica real."},
     "secadora_ropa": {"watts_uso": 2500, "watts_standby": 0, "nombre": "Secadora de ropa"},
     "horno_electrico": {"watts_uso": 2000, "watts_standby": 0, "nombre": "Horno eléctrico"},
     "olla_arrocera": {"watts_uso": 700, "watts_standby": 5, "nombre": "Olla arrocera"},
@@ -52,12 +54,35 @@
     "temp_inicial_c": 20,
     "temp_final_c": 100
   },
-  "tarifa": {
-    "clp_por_kwh": 150,
-    "_nota": "Valor referencial. El usuario debería reemplazarlo por el precio real de su boleta (kWh) para mayor exactitud."
+  "perfil_hogar": {
+    "_nota": "Traduce las respuestas del wizard a artefactos de 'electrodomesticos'. Cada entrada hace EXPLICITA la suposicion de uso que antes estaba escondida dentro de una constante de kWh/mes en app.py (ej. 'aire_acondicionado * 120'). Son estimaciones referenciales: ajustalas con datos reales antes de presentarlas como asesoria.",
+    "base_habitantes": {
+      "nombre": "Iluminación y uso base por habitantes",
+      "kwh_mes_por_adulto": 30,
+      "kwh_mes_por_menor": 15,
+      "_nota": "Termino agregado que no corresponde a un artefacto concreto: cubre iluminacion, carga de dispositivos y pequenos electrodomesticos. No tiene ahorro asociado porque no se modela equipo por equipo."
+    },
+    "equipos": {
+      "aire_acondicionado":      {"clave": "aire_acondicionado",    "horas_uso_diario": 4.4,  "veces_semana": 7},
+      "calefaccion_electrica":   {"clave": "calefactor_electrico",  "horas_uso_diario": 3.3,  "veces_semana": 7},
+      "agua_caliente_electrica": {"clave": "termotanque_electrico", "horas_uso_diario": 4.0,  "veces_semana": 7},
+      "secarropas_electrico":    {"clave": "secadora_ropa",         "horas_uso_diario": 1.87, "veces_semana": 2},
+      "horno_electrico":         {"clave": "horno_electrico",       "horas_uso_diario": 1.17, "veces_semana": 3},
+      "refrigerador":            {"clave": "refrigerador",          "horas_uso_diario": 24,   "veces_semana": 7},
+      "freezer":                 {"clave": "congeladora",           "horas_uso_diario": 24,   "veces_semana": 7}
+    },
+    "television": {
+      "clave": "television",
+      "_nota": "Las horas las aporta el usuario en 'tv_frecuencia' (horas por semana)."
+    },
+    "lavadora": {
+      "clave": "lavadora",
+      "horas_por_ciclo": 1.0,
+      "_nota": "Las veces por semana las aporta el usuario en 'lavado_frecuencia'. El modelo anterior asumia 3.5 kWh por ciclo, muy por encima del rango real (0.5-2 kWh). Ahora son ~1 kWh, con la potencia media declarada en 'electrodomesticos.lavadora'. Ninguno de los dos valores esta verificado contra una etiqueta energetica."
+    }
   },
   "paises": {
-    "_nota": "Valores REFERENCIALES de partida (2024-2025), no verificados en tiempo real. El usuario debe confirmar el valor vigente en la fuente oficial de su país y/o reemplazarlo por el de su propia boleta.",
+    "_nota": "Valores REFERENCIALES de partida (2024-2025), no verificados en tiempo real. El usuario debe confirmar el valor vigente en la fuente oficial de su país y/o reemplazarlo por el de su propia boleta. FUENTE UNICA de tarifas: antes convivia con un dict _TARIFAS en app.py que discrepaba en 14 de 17 paises.",
     "CL": {"nombre": "Chile", "moneda": "CLP", "simbolo": "$", "tarifa_kwh_referencial": 150, "fuente": "Comisión Nacional de Energía (CNE) - cne.cl"},
     "AR": {"nombre": "Argentina", "moneda": "ARS", "simbolo": "$", "tarifa_kwh_referencial": 85, "fuente": "ENRE - argentina.gob.ar/enre"},
     "PE": {"nombre": "Perú", "moneda": "PEN", "simbolo": "S/", "tarifa_kwh_referencial": 0.62, "fuente": "OSINERGMIN - osinergmin.gob.pe"},
@@ -74,7 +99,14 @@
     "CR": {"nombre": "Costa Rica", "moneda": "CRC", "simbolo": "₡", "tarifa_kwh_referencial": 145, "fuente": "ARESEP - aresep.go.cr"},
     "PA": {"nombre": "Panamá", "moneda": "USD", "simbolo": "$", "tarifa_kwh_referencial": 0.17, "fuente": "ASEP - asep.gob.pa"},
     "DO": {"nombre": "Rep. Dominicana", "moneda": "DOP", "simbolo": "RD$", "tarifa_kwh_referencial": 12.50, "fuente": "SIE - sie.gob.do"},
-    "US": {"nombre": "Estados Unidos", "moneda": "USD", "simbolo": "$", "tarifa_kwh_referencial": 0.16, "fuente": "EIA - eia.gov"}
+    "US": {"nombre": "Estados Unidos", "moneda": "USD", "simbolo": "$", "tarifa_kwh_referencial": 0.16, "fuente": "EIA - eia.gov"},
+    "HN": {"nombre": "Honduras", "moneda": "HNL", "simbolo": "L", "tarifa_kwh_referencial": 3.50, "fuente": "SIN VERIFICAR - migrado desde el dict _TARIFAS de app.py, sin fuente oficial"},
+    "SV": {"nombre": "El Salvador", "moneda": "USD", "simbolo": "$", "tarifa_kwh_referencial": 0.19, "fuente": "SIN VERIFICAR - migrado desde el dict _TARIFAS de app.py, sin fuente oficial"},
+    "NI": {"nombre": "Nicaragua", "moneda": "NIO", "simbolo": "C$", "tarifa_kwh_referencial": 7.50, "fuente": "SIN VERIFICAR - migrado desde el dict _TARIFAS de app.py, sin fuente oficial"},
+    "PR": {"nombre": "Puerto Rico", "moneda": "USD", "simbolo": "$", "tarifa_kwh_referencial": 0.22, "fuente": "SIN VERIFICAR - migrado desde el dict _TARIFAS de app.py, sin fuente oficial"},
+    "CU": {"nombre": "Cuba", "moneda": "CUP", "simbolo": "$", "tarifa_kwh_referencial": 0.09, "fuente": "SIN VERIFICAR - migrado desde el dict _TARIFAS de app.py, sin fuente oficial"},
+    "HT": {"nombre": "Haití", "moneda": "HTG", "simbolo": "G", "tarifa_kwh_referencial": 0.14, "fuente": "SIN VERIFICAR - migrado desde el dict _TARIFAS de app.py, sin fuente oficial"},
+    "JM": {"nombre": "Jamaica", "moneda": "JMD", "simbolo": "J$", "tarifa_kwh_referencial": 0.35, "fuente": "SIN VERIFICAR - migrado desde el dict _TARIFAS de app.py, sin fuente oficial"}
   },
   "categorias_comparables": {
     "_nota": "Catálogo DE EJEMPLO para el comparador de artefactos. Los precios y modelos son placeholders — reemplázalos por datos reales de retailers antes de usar en producción, o conecta una API de shopping/scraping propia.",

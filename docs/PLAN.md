@@ -35,7 +35,14 @@ Las seis se resolvieron por la opción recomendada.
 | 1.1 Versionar el código | ✅ Hecha — rama `vllanten`, commit `b20282c` |
 | 1.2 Purgar los zips del historial | ⚠️ **Reabierta** — ver nota |
 | 1.3 Blindar el `.gitignore` | ✅ Hecha |
-| 1.4 Piso de calidad (ruff + pytest + CI) | ✅ Hecha — `ruff check` limpio, 4 tests en verde |
+| 1.4 Piso de calidad (ruff + pytest + CI) | ✅ Hecha — `ruff check` limpio |
+| 2.1 Tarifa del país en los ahorros | ✅ Hecha |
+| 2.2 Fuente única de tarifas | ✅ Hecha — 24 países en el JSON, `_TARIFAS` eliminado |
+| 2.3 Motor único | ✅ Hecha — `_estimar_consumo` sustituido por `calculos.estimar_desde_perfil` |
+| 2.4 Ahorro real en vez del 20% fijo | ✅ Hecha |
+| 2.5 Eliminar `probabilidad` | ✅ Hecha |
+| 2.6 Tests de `calculos.py` | ✅ Hecha — 51 tests, 99% de cobertura (objetivo era 80%) |
+| 4.6 Retirar el agente CLI (D-5) | ✅ Adelantada — `agente.py` y `tools.py` usaban las firmas viejas |
 
 > **Sobre 0.1 y 1.2.** El trabajo se aisló en la rama `vllanten` para no forzar un re-clone al equipo.
 > Eso resuelve la 1.1 pero **no** la 1.2: los zips viven en `e4cf47e`, ancestro de `main` y de
@@ -141,6 +148,30 @@ Casos mínimos: standby con y sin desconexión, `veces_semana`, iluminación vs 
 (verificable contra la física), tarifa por país, clave de artefacto inexistente.
 
 - **Aceptación:** ≥80% de cobertura en `src/calculos.py`.
+
+---
+
+### 2.7 Hallazgos abiertos por la Fase 2
+
+Tres cosas que salieron al ejecutar el trabajo y que necesitan decisión, no código:
+
+**a) El ahorro honesto es mucho menor que el inventado.** Un hogar tipo en Chile (4 habitantes,
+refrigerador, freezer, 2 TV, A/C, 4 lavados semanales) daba **$9.792/mes** con el 20% fijo y da
+**$277/mes** con la suma real. Son 35 veces menos. La cifra nueva es la correcta, pero solo monetiza
+el consumo fantasma (standby), que es lo único que el motor modela como evitable. Las
+recomendaciones contextuales sí prometen ahorros mayores —bajar el A/C a 24 °C, lavar en frío,
+cambiar a LED— y ninguno entra en el número. **Modelar el ahorro de esas acciones es trabajo de
+producto pendiente**, y hasta entonces el `ahorro_estimado` subestima.
+
+**b) Dos potencias del JSON estaban mal y se corrigieron.** El refrigerador declaraba 150 W, que es
+la potencia del compresor en marcha, no la media con el ciclado: aplicada 24/7 daba 108 kWh/mes,
+unas 3 veces el consumo doméstico real. Igual la congeladora con 200 W. Ahora son 50 W y 62 W.
+Esto **cambia los resultados de `/api/calcular`**, no solo los del wizard.
+
+**c) La lavadora quedó en un valor no verificado.** El modelo viejo asumía 3.5 kWh por ciclo (muy
+alto) y el JSON declaraba 500 W, que a 1 h por ciclo da 0.5 kWh (bajo, corresponde a lavado en frío
+sin calentar agua). Se fijó en 1000 W → **~1 kWh por ciclo**, dentro del rango habitual de 0.5-2 kWh.
+Es una estimación razonada, no un dato: **sustituir por la etiqueta energética de un equipo real.**
 
 ---
 

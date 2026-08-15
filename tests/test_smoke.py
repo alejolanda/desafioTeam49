@@ -37,4 +37,4 @@ def test_paises_excluye_claves_de_metadatos(cliente):
 
 def test_artefacto_desconocido_es_rechazado():
     with pytest.raises(ValueError):
-        calculos.consumo_mensual_standby("artefacto_que_no_existe", horas_uso_diario=1)
+        calculos.consumo_mensual_standby("artefacto_que_no_existe", horas_uso_diario=1, tarifa=150)

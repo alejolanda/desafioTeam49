@@ -93,10 +93,36 @@ def generar_recomendaciones(desglose: list) -> list:
     return [texto for _, texto in candidatas]
 
 
+@app.errorhandler(calculos.PaisNoSoportado)
+def _pais_no_soportado(error):
+    return jsonify({"error": str(error), "paises_soportados": sorted(calculos.PAISES)}), 400
+
+
+def _resolver_tarifa(datos: dict) -> tuple[float, dict]:
+    """
+    Resuelve la tarifa a aplicar y la ficha del país. Prioridad:
+      1. tarifa explícita del payload (la que el usuario leyó de su boleta)
+      2. tarifa referencial del país declarado
+
+    Antes esto lo hacía `_get_tarifa`, que leía de un dict `_TARIFAS` local
+    discrepante con el JSON en 14 de los 17 países, y cuyo fallback consultaba
+    una clave (`tarifa_kwh`) que el JSON no tiene: siempre caía a 0.18 USD.
+    """
+    pais = (datos.get("pais") or "CL").strip() or "CL"
+    ficha = calculos.obtener_pais(pais)
+
+    explicita = datos.get("tarifa_kwh") or datos.get("tarifa_clp_kwh")
+    try:
+        tarifa = float(explicita) if explicita else float(ficha["tarifa_kwh_referencial"])
+    except (TypeError, ValueError):
+        tarifa = float(ficha["tarifa_kwh_referencial"])
+
+    return tarifa, ficha
+
+
 @app.route("/api/paises")
 def paises():
-    datos = {k: v for k, v in calculos.REFERENCIA["paises"].items() if not k.startswith("_")}
-    return jsonify(datos)
+    return jsonify(calculos.PAISES)
 
 
 @app.route("/api/interpretar-campo", methods=["POST"])
@@ -150,13 +176,16 @@ def interpretar_campo():
 
 @app.route("/api/comparar", methods=["POST"])
 def comparar():
-    datos = request.get_json(force=True)
+    datos = request.get_json(force=True) or {}
+    tarifa, _ficha = _resolver_tarifa(datos)
     try:
         resultado = calculos.comparar_categoria(
-            datos["categoria"], float(datos["horas_uso_diario"]), float(datos.get("tarifa_clp_kwh", 230))
+            datos["categoria"], float(datos["horas_uso_diario"]), tarifa
         )
         return jsonify(resultado)
-    except ValueError as e:
+    except KeyError as e:
+        return jsonify({"error": f"Falta el campo obligatorio {e}."}), 400
+    except (ValueError, TypeError) as e:
         return jsonify({"error": str(e)}), 400
 
 
@@ -169,7 +198,7 @@ def index():
 @app.route("/api/calcular", methods=["POST"])
 def calcular():
     datos = request.get_json(force=True)
-    tarifa = float(datos.get("tarifa_clp_kwh", 150))
+    tarifa, ficha_pais = _resolver_tarifa(datos)
 
     desglose = []
     total_kwh_mes = 0.0
@@ -181,7 +210,8 @@ def calcular():
             resultado = calculos.consumo_mensual_standby(
                 item["clave"],
                 float(item["horas"]),
-                int(item.get("cantidad", 1)),
+                tarifa,
+                cantidad=int(item.get("cantidad", 1)),
                 queda_conectado=bool(item.get("queda_conectado", True)),
                 veces_semana=float(item.get("veces_semana", 7)),
             )
@@ -195,7 +225,9 @@ def calcular():
     # Iluminación (puede haber varios tipos a la vez: LED + fluorescente, etc.)
     for item in datos.get("iluminacion", []):
         try:
-            resultado = calculos.consumo_iluminacion(item["tipo"], int(item["cantidad"]), float(item["horas"]))
+            resultado = calculos.consumo_iluminacion(
+                item["tipo"], int(item["cantidad"]), float(item["horas"]), tarifa
+            )
             desglose.append(resultado)
             total_kwh_mes += resultado["kwh_mes_actual"]
             ahorro_potencial_clp_mes += resultado.get("ahorro_clp_mes", 0)
@@ -206,7 +238,10 @@ def calcular():
     hervidor = datos.get("hervidor")
     if hervidor and hervidor.get("tiene"):
         resultado = calculos.ahorro_hervidor(
-            float(hervidor["litros_habitual"]), float(hervidor["litros_necesario"]), int(hervidor.get("usos_dia", 1))
+            float(hervidor["litros_habitual"]),
+            float(hervidor["litros_necesario"]),
+            tarifa,
+            usos_por_dia=int(hervidor.get("usos_dia", 1)),
         )
         resultado["nombre"] = "Hervidor de agua"
         desglose.append(resultado)
@@ -219,14 +254,18 @@ def calcular():
             item.get("nombre", "Artefacto personalizado"),
             float(item["watts"]),
             float(item["horas"]),
+            tarifa,
             cantidad=int(item.get("cantidad", 1)),
         )
         desglose.append(resultado)
         total_kwh_mes += resultado["kwh_mes_actual"]
 
-    total_clp_mes = calculos.kwh_a_clp(total_kwh_mes, tarifa)
+    total_clp_mes = calculos.kwh_a_dinero(total_kwh_mes, tarifa)
 
     resumen = {
+        "moneda": ficha_pais["moneda"],
+        "simbolo_moneda": ficha_pais["simbolo"],
+        "tarifa_aplicada": tarifa,
         "total_kwh_mes": round(total_kwh_mes, 2),
         "total_clp_mes": round(total_clp_mes, 0),
         "ahorro_potencial_clp_mes": round(ahorro_potencial_clp_mes, 0),
@@ -269,7 +308,7 @@ def subir_boleta():
     archivo.save(ruta_temp)
 
     # Obtener info del país
-    datos_pais = calculos.REFERENCIA["paises"].get(pais_codigo, {})
+    datos_pais = calculos.PAISES.get(pais_codigo, {})
     moneda  = datos_pais.get("moneda",  "local")
     simbolo = datos_pais.get("simbolo", "")
     nombre_pais = datos_pais.get("nombre", "tu país")
@@ -395,49 +434,6 @@ RESPONDE SOLO con este JSON exacto, sin texto adicional:
 #  ENGINE DE CÁLCULO ENERGÉTICO — Helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
-# ── Tarifas promedio por kWh en moneda local (actualizables) ──────────────────
-_TARIFAS: dict[str, tuple[float, str]] = {
-    "DO": (11.5,  "RD$"),   # Rep. Dominicana  – DOP
-    "CL": (145.0, "$"),     # Chile            – CLP
-    "AR": (75.0,  "$"),     # Argentina        – ARS
-    "MX": (1.20,  "$"),     # México           – MXN
-    "CO": (650.0, "$"),     # Colombia         – COP
-    "PE": (0.45,  "S/"),    # Perú             – PEN
-    "EC": (0.10,  "$"),     # Ecuador          – USD
-    "BO": (0.08,  "Bs"),    # Bolivia          – BOB
-    "PY": (150.0, "₲"),     # Paraguay         – PYG
-    "UY": (6.50,  "$"),     # Uruguay          – UYU
-    "VE": (0.05,  "Bs.D"),  # Venezuela        – VES
-    "CR": (130.0, "₡"),     # Costa Rica       – CRC
-    "PA": (0.17,  "$"),     # Panamá           – USD
-    "GT": (1.50,  "Q"),     # Guatemala        – GTQ
-    "HN": (3.50,  "L"),     # Honduras         – HNL
-    "SV": (0.19,  "$"),     # El Salvador      – USD
-    "NI": (7.50,  "C$"),    # Nicaragua        – NIO
-    "US": (0.18,  "$"),     # EE.UU.           – USD
-    "PR": (0.22,  "$"),     # Puerto Rico      – USD
-    "ES": (0.25,  "€"),     # España           – EUR
-    "BR": (0.65,  "R$"),    # Brasil           – BRL
-    "CU": (0.09,  "$"),     # Cuba             – CUP
-    "HT": (0.14,  "G"),     # Haití            – HTG
-    "JM": (0.35,  "J$"),    # Jamaica          – JMD
-}
-_TARIFA_DEFAULT: tuple[float, str] = (0.18, "$")  # Fallback: USD
-
-
-def _get_tarifa(pais_codigo: str) -> tuple[float, str]:
-    """Devuelve (tarifa_kwh, simbolo_moneda) para el código ISO del país."""
-    if pais_codigo in _TARIFAS:
-        return _TARIFAS[pais_codigo]
-    # Fallback: intentar leer tarifa de calculos.REFERENCIA
-    datos_pais = calculos.REFERENCIA.get("paises", {}).get(pais_codigo, {})
-    tarifa = float(datos_pais.get("tarifa_kwh") or 0)
-    simbolo = datos_pais.get("simbolo") or _TARIFA_DEFAULT[1]
-    if tarifa > 0:
-        return tarifa, simbolo
-    return _TARIFA_DEFAULT
-
-
 def _sanitizar(data: dict) -> dict:
     """
     Convierte cada campo del payload a su tipo correcto.
@@ -464,6 +460,9 @@ def _sanitizar(data: dict) -> dict:
         # Consumo (admite tanto 'consumo' como 'consumo_kwh')
         "consumo":                _f("consumo", "consumo_kwh"),
         "flag_anual":             _i("flag_anual"),
+        # Tarifa que el usuario leyó de su propia boleta. Sin esto, el dato que
+        # extrae /api/subir-boleta no llegaría nunca al cálculo.
+        "tarifa_kwh":             _f("tarifa_kwh", "tarifa_clp_kwh"),
         # Ubicación
         "pais":                   _s("pais", "CL"),
         "estado_provincia":       _s("estado_provincia"),
@@ -489,79 +488,6 @@ def _sanitizar(data: dict) -> dict:
         "luces_interior":         _i("luces_interior"),
         "luces_exterior":         _i("luces_exterior"),
         "flag_galones":           _i("flag_galones"),
-    }
-
-
-def _estimar_consumo(d: dict) -> dict:
-    """
-    Si d['consumo'] > 0 → usa ese valor (convierte de anual a mensual si aplica).
-    Si d['consumo'] == 0 → suma el consumo de cada artefacto declarado.
-
-    Retorna: {consumo_kwh, fuente, desglose}
-    """
-    consumo_declarado = d["consumo"]
-
-    # Convertir anual → mensual
-    if d["flag_anual"] == 1 and consumo_declarado > 0:
-        consumo_declarado = consumo_declarado / 12
-
-    if consumo_declarado > 0:
-        return {
-            "consumo_kwh": round(consumo_declarado, 1),
-            "fuente": "declarado",
-            "desglose": {"Consumo declarado en recibo": round(consumo_declarado, 1)},
-        }
-
-    # ── Estimación desde artefactos ────────────────────────────────────────
-    desglose: dict[str, float] = {}
-
-    base = (d["habitantes_mayores"] * 30) + (d["habitantes_menores"] * 15)
-    if base:
-        desglose["Iluminación y uso base por habitantes"] = round(base, 1)
-
-    ac = d["aire_acondicionado"] * 120
-    if ac:
-        desglose["Aire Acondicionado"] = round(ac, 1)
-
-    calef = d["calefaccion_electrica"] * 150
-    if calef:
-        desglose["Calefacción Eléctrica"] = round(calef, 1)
-
-    agua = d["agua_caliente_electrica"] * 180
-    if agua:
-        desglose["Termotanque / Calentador Eléctrico"] = round(agua, 1)
-
-    seca = d["secarropas_electrico"] * 40
-    if seca:
-        desglose["Secarropas Eléctrico"] = round(seca, 1)
-
-    horno = d["horno_electrico"] * 30
-    if horno:
-        desglose["Horno / Anafe Eléctrico"] = round(horno, 1)
-
-    frio = (d["refrigerador"] * 35) + (d["freezer"] * 45)
-    if frio:
-        desglose["Refrigeración (heladera + freezer)"] = round(frio, 1)
-
-    tv_kwh = d["tv"] * d["tv_frecuencia"] * 0.1 * 4.33
-    if tv_kwh:
-        desglose["Televisores"] = round(tv_kwh, 1)
-
-    lavado_kwh = d["lavado_frecuencia"] * 3.5 * 4.33
-    if lavado_kwh:
-        desglose["Lavadora de Ropa"] = round(lavado_kwh, 1)
-
-    total = sum(desglose.values())
-
-    # Mínimo plausible si el usuario no declaró nada relevante
-    if total <= 0:
-        total = 50.0
-        desglose["Consumo base estimado (datos insuficientes)"] = 50.0
-
-    return {
-        "consumo_kwh": round(total, 1),
-        "fuente": "estimado",
-        "desglose": desglose,
     }
 
 
@@ -613,57 +539,78 @@ def analisis_energetico_mvp():
     # ── 1. Sanitización completa de entradas ────────────────────────────────
     d = _sanitizar(data)
 
-    # ── 2. Consumo en kWh (declarado o estimado por artefactos) ─────────────
-    resultado_consumo = _estimar_consumo(d)
-    consumo_kwh = resultado_consumo["consumo_kwh"]
+    # ── 2. Tarifa, moneda y símbolo desde la fuente única ───────────────────
+    tarifa_kwh, ficha_pais = _resolver_tarifa(d)
+    simbolo_moneda = ficha_pais["simbolo"]
+    moneda_iso = ficha_pais["moneda"]
 
-    # ── 3. Tarifa y moneda según país ───────────────────────────────────────
-    tarifa_kwh, simbolo_moneda = _get_tarifa(d["pais"])
+    # ── 3. Desglose por artefacto con el motor determinista ─────────────────
+    # Se calcula SIEMPRE, incluso cuando el usuario declara el consumo de su
+    # boleta: el consumo declarado es más fiable, pero sin desglose no hay
+    # forma de saber dónde está el ahorro.
+    perfil = calculos.estimar_desde_perfil(d, tarifa_kwh)
+
+    # ── 4. Consumo en kWh: declarado (convertido a mensual) o estimado ──────
+    consumo_declarado = d["consumo"] / 12 if d["flag_anual"] == 1 and d["consumo"] > 0 else d["consumo"]
+
+    if consumo_declarado > 0:
+        consumo_kwh = round(consumo_declarado, 1)
+        fuente_consumo = "declarado"
+        desglose = {"Consumo declarado en recibo": consumo_kwh}
+    elif perfil["consumo_kwh"] > 0:
+        consumo_kwh = perfil["consumo_kwh"]
+        fuente_consumo = "estimado"
+        desglose = perfil["desglose"]
+    else:
+        # El usuario no declaró consumo ni artefactos: no hay nada que estimar.
+        consumo_kwh = 0.0
+        fuente_consumo = "sin_datos"
+        desglose = {}
+
     costo_estimado = round(consumo_kwh * tarifa_kwh, 2)
-    ahorro_estimado = round(costo_estimado * 0.20, 2)
 
-    # ── 4. Clasificación energética ─────────────────────────────────────────
+    # ── 5. Ahorro REAL, sumado artefacto por artefacto ──────────────────────
+    # Antes era `costo_estimado * 0.20`: un 20% fijo, idéntico para todos los
+    # hogares e independiente de los equipos declarados.
+    ahorro_estimado = perfil["ahorro_dinero_mes"]
+    fuente_ahorro = "desglose_artefactos" if perfil["items"] else "sin_artefactos_declarados"
+
+    # ── 6. Clasificación y recomendaciones ──────────────────────────────────
     categoria = _clasificar(consumo_kwh)
-
-    # ── 5. Recomendaciones contextuales ─────────────────────────────────────
     recomendaciones = _recomendaciones_contextuales(categoria, d)
 
-    # ── 6. Código ISO de moneda y Narrativa con LLM ─────────────────────────
-    moneda_iso = (
-        calculos.REFERENCIA.get("paises", {})
-        .get(d["pais"], {})
-        .get("moneda", "")
-    )
-
-    resumen_para_llm = {
+    # ── 7. Narrativa con LLM ────────────────────────────────────────────────
+    narrativa = generar_narrativa({
         "total_kwh_mes": consumo_kwh,
         "total_clp_mes": costo_estimado,
         "ahorro_potencial_clp_mes": ahorro_estimado,
         "simbolo_moneda": simbolo_moneda,
         "moneda": moneda_iso,
-    }
-    narrativa = generar_narrativa(resumen_para_llm)
+    })
 
     # ── 8. Respuesta estructurada ────────────────────────────────────────────
     return jsonify({
         # Campos primarios (nuevos nombres que el frontend ya consume)
         "status":          "success",
-        "consumo_kwh":     round(consumo_kwh, 1),
+        "consumo_kwh":     consumo_kwh,
         "costo_estimado":  costo_estimado,
         "ahorro_estimado": ahorro_estimado,
         "simbolo_moneda":  simbolo_moneda,
         "moneda":          moneda_iso,
+        "tarifa_aplicada": tarifa_kwh,
         "categoria":       categoria,
-        "fuente_consumo":  resultado_consumo["fuente"],
-        "desglose":        resultado_consumo["desglose"],
+        "fuente_consumo":  fuente_consumo,
+        "fuente_ahorro":   fuente_ahorro,
+        "desglose":        desglose,
         "recomendaciones": recomendaciones,
         "narrativa":       narrativa,
-        # Aliases de compatibilidad (versiones previas del frontend los esperan)
+        # Aliases de compatibilidad (versiones previas del frontend los esperan).
+        # Marcados como deprecados en la tarea 7.3 del plan; se retiran cuando el
+        # frontend deje de leerlos.
         "costo_estimado_mensual":   costo_estimado,
-        "total_kwh_mes":            round(consumo_kwh, 1),
+        "total_kwh_mes":            consumo_kwh,
         "total_clp_mes":            costo_estimado,
         "ahorro_potencial_clp_mes": ahorro_estimado,
-        "probabilidad":             0.90 if categoria == "Eficiente" else 0.75 if categoria == "Moderado" else 0.82,
     })
 
 if __name__ == "__main__":
