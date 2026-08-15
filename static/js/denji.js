@@ -763,7 +763,9 @@
 
   function detectarUbicacionReal(){
     statusEl.textContent = 'Denji: Detectando tu ubicación…';
-    card.innerHTML = '<p style="margin:0 0 8px">Detectando tu ubicación…</p><p class="denji-sim-note">Tu navegador te va a pedir permiso para usar tu ubicación.</p>';
+    card.innerHTML = '<p style="margin:0 0 8px">Detectando tu ubicación…</p>' +
+      '<p class="denji-sim-note">Tu navegador te va a pedir permiso para usar tu ubicación. ' +
+      'Consultamos la ciudad en OpenStreetMap enviando solo una posición aproximada.</p>';
 
     if(!('geolocation' in navigator)){
       renderUbicacionManual();
@@ -772,10 +774,21 @@
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=10&addressdetails=1')
-          .then(r => r.json())
+        // Se redondea a 2 decimales (~1 km) antes de salir del navegador. La
+        // consulta pide zoom=10, que resuelve a nivel de ciudad, así que la
+        // precisión completa no aporta nada y sí expone la posición exacta del
+        // usuario a un tercero.
+        const lat = pos.coords.latitude.toFixed(2);
+        const lon = pos.coords.longitude.toFixed(2);
+
+        // Nominatim es un servicio comunitario gratuito y puede tardar o no
+        // responder; sin tope, el asistente se queda esperando indefinidamente.
+        const control = new AbortController();
+        const temporizador = setTimeout(() => control.abort(), 8000);
+
+        fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=10&addressdetails=1',
+              { signal: control.signal })
+          .then(r => { clearTimeout(temporizador); return r.json(); })
           .then(data => {
             const addr = data.address || {};
             const comuna = addr.city || addr.town || addr.village || addr.municipality || addr.county || '';
@@ -784,7 +797,7 @@
             if(!comuna && !region && !pais){ renderUbicacionManual(); return; }
             mostrarConfirmacionUbicacion(comuna, region, pais);
           })
-          .catch(() => renderUbicacionManual());
+          .catch(() => { clearTimeout(temporizador); renderUbicacionManual(); });
       },
       () => {
         // permiso denegado, tiempo agotado, u otro error del navegador

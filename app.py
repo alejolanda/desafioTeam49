@@ -3,13 +3,13 @@ from __future__ import annotations
 import base64
 import os
 import re
+import tempfile
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from langchain_core.messages import HumanMessage, SystemMessage
-from werkzeug.utils import secure_filename
 
 from src import calculos
 from src import llm as groq
@@ -169,6 +169,13 @@ def generar_recomendaciones(desglose: list) -> list:
 
     candidatas.sort(key=lambda par: par[0], reverse=True)
     return [texto for _, texto in candidatas]
+
+
+@app.errorhandler(413)
+def _archivo_demasiado_grande(error):
+    """El tope de MAX_CONTENT_LENGTH devolvia la pagina HTML de error de Werkzeug."""
+    limite_mb = app.config["MAX_CONTENT_LENGTH"] / (1024 * 1024)
+    return jsonify({"error": f"El archivo supera el maximo de {limite_mb:.0f} MB."}), 413
 
 
 @app.errorhandler(calculos.PaisNoSoportado)
@@ -386,10 +393,19 @@ def subir_boleta():
     if not extension_permitida(archivo.filename):
         return jsonify({"error": "Solo se aceptan imágenes (PNG, JPG, WEBP) o PDF."}), 400
 
-    # Guardar temporalmente
-    nombre_seguro = secure_filename(archivo.filename)
-    ruta_temp = os.path.join(app.config["UPLOAD_FOLDER"], nombre_seguro)
-    archivo.save(ruta_temp)
+    # La extensión ya pasó por la lista blanca de extension_permitida.
+    extension = archivo.filename.rsplit(".", 1)[1].lower()
+
+    # Nombre generado por el sistema, no derivado del que envía el cliente.
+    # Antes se guardaba en uploads/<nombre_original>: dos personas subiendo
+    # "boleta.pdf" a la vez se pisaban el archivo, y el bloque `finally` de la
+    # primera borraba el de la segunda mientras aún se estaba analizando.
+    # De paso elimina cualquier posibilidad de path traversal por el nombre.
+    with tempfile.NamedTemporaryFile(
+        dir=app.config["UPLOAD_FOLDER"], suffix=f".{extension}", delete=False
+    ) as destino:
+        archivo.save(destino)
+        ruta_temp = destino.name
 
     # Obtener info del país
     datos_pais = calculos.PAISES.get(pais_codigo, {})
@@ -398,8 +414,6 @@ def subir_boleta():
     nombre_pais = datos_pais.get("nombre", "tu país")
 
     try:
-        extension = nombre_seguro.rsplit(".", 1)[1].lower()
-
         prompt_extraccion = f"""Analiza esta boleta eléctrica de {nombre_pais} (moneda: {moneda}).
 
 Extrae con precisión:

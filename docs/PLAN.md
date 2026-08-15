@@ -58,7 +58,12 @@ Las seis se resolvieron por la opción recomendada.
 | 4.6 Retirar el agente CLI (D-5) | ✅ Hecha — `agente.py` y `tools.py` usaban las firmas viejas |
 | 4.6b `/api/comparar` | ⏸️ En espera deliberada — ver nota |
 | 5.1 Parseo de números latinoamericanos | ✅ Adelantada — el bug estaba en la ruta que tocaba 3.x |
+| 5.2 Colisión de archivos subidos | ✅ Hecha — `tempfile.NamedTemporaryFile` |
+| 5.3 Handler de 413 | ✅ Hecha |
 | 5.4 `/api/comparar` con payload incompleto | ✅ Adelantada |
+| 5.5 Fijar el CDN | ✅ Hecha — **vendorizado**: la página ya no hace ninguna petición externa |
+| 5.6 Desacoplar `denji.js` | ✅ Resuelta de otra forma — ver nota |
+| 5.7 Sincronizar el README | → movida a la Fase 7 |
 
 > **Sobre 0.1 y 1.2.** El trabajo se aisló en la rama `vllanten` para no forzar un re-clone al equipo.
 > Eso resuelve la 1.1 pero **no** la 1.2: los zips viven en `e4cf47e`, ancestro de `main` y de
@@ -332,11 +337,34 @@ El límite de 10 MB devuelve HTML en vez de JSON. Añadir `@app.errorhandler(413
 `unpkg.com/lucide@latest` sin SRI ni versión ([`templates/index.html:19`](../templates/index.html#L19))
 es una dependencia de terceros sin pinnear. Fijar versión con `integrity`, o vendorizar el archivo.
 
-### 5.6 Desacoplar `denji.js`
-Navega buscando texto literal del DOM (881 líneas). El propio archivo lo documenta con honestidad,
-pero cualquier cambio de copy lo rompe.
+### 5.6 Desacoplar `denji.js` — el hallazgo estaba sobredimensionado
+Al ir a corregirlo resultó que `denji.js` **no** navega por texto: resuelve cada campo en tres
+niveles —ID real en `MAPEO_CAMPOS`, atributo `data-denji-target`, y solo como último recurso el texto
+de la etiqueta— y **los 21 IDs del primer nivel existen todos en la plantilla**, así que la búsqueda
+por texto nunca llega a ejecutarse. La nota de cabecera del archivo describe el tercer nivel, no el
+mecanismo real.
 
-- Migrar el mapa `ETIQUETAS` a atributos `data-denji-*` en el HTML.
+Añadir atributos `data-denji-*` habría sido un tercer mecanismo redundante. La fragilidad de verdad
+es otra: ese acuerdo de IDs vive en dos archivos distintos, sin nada que lo verifique, y si alguien
+renombra un ID el asistente cae en silencio al emparejamiento por texto. Se resolvió con
+`tests/test_contrato_frontend.py`, que falla en CI si `denji.js` o `app.js` apuntan a un ID que ya no
+está en la plantilla.
+
+### 5.8 Geolocalización a un tercero *(hallazgo nuevo)*
+`denji.js` envía las coordenadas del usuario a `nominatim.openstreetmap.org`
+([`denji.js:777`](../static/js/denji.js#L777)) para resolver la ciudad. Tres problemas, ya corregidos
+en lo esencial:
+
+- **Se avisaba a medias.** El texto decía que el navegador pediría permiso, pero no que la posición
+  saliera hacia un tercero. Ahora se dice.
+- **Precisión innecesaria.** Se mandaba la coordenada completa para una consulta con `zoom=10`, que
+  resuelve a nivel de ciudad. Ahora se redondea a 2 decimales (~1 km).
+- **Sin timeout.** Nominatim es un servicio comunitario gratuito; si no responde, el asistente se
+  quedaba esperando. Ahora aborta a los 8 s y cae al ingreso manual.
+
+**Pendiente:** la política de uso de Nominatim pide identificar la aplicación por `User-Agent`, algo
+que un navegador no puede fijar. Lo correcto sería redirigir la consulta por el backend, que sí puede
+identificarse y cachear. Queda como tarea aparte porque implica un endpoint nuevo.
 
 ---
 

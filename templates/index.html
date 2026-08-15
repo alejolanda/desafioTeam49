@@ -8,15 +8,16 @@
   <meta name="description"
     content="Calcula tu consumo eléctrico y descubre cuánto puedes ahorrar con VólticvS, tu asesor energético inteligente.">
 
-  <!-- Fuente: Atkinson Hyperlegible -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap"
-    rel="stylesheet">
+  <!-- Fuente: Atkinson Hyperlegible (servida localmente).
+       Venía de Google Fonts: sin conexión, la interfaz perdía la tipografía
+       pensada para lectura accesible, que es justo la que no conviene perder. -->
+  <link rel="stylesheet" href="/static/vendor/atkinson-hyperlegible.css">
 
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <!-- Lucide Icons v0.469.0 (servido localmente).
+       Venía de unpkg con la etiqueta @latest y sin `integrity`: una
+       dependencia de terceros sin fijar, que además rompía la interfaz
+       entera al quedarse sin red. -->
+  <script src="/static/vendor/lucide.min.js"></script>
 
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
