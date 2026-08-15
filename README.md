@@ -69,25 +69,87 @@ antes que hacer peticiones sin identificar contra un servicio comunitario gratui
 
 ## Cómo funciona
 
+```mermaid
+flowchart TB
+    subgraph navegador["Navegador"]
+        UI["index.html + app.js<br/>asistente de 4 pasos"]
+        Denji["denji.js<br/>guía por voz y rellena el formulario"]
+    end
+
+    subgraph flask["Flask · app.py"]
+        Calculos["src/calculos.py<br/>MOTOR DETERMINISTA<br/>toda cifra sale de aquí"]
+        LLM["src/llm.py<br/>acceso a Groq<br/>timeout, validación, degradación"]
+        Geo["src/geo.py<br/>intermediario ante OpenStreetMap"]
+    end
+
+    Datos[("data/consumo_referencia.json<br/>fuente única: potencias, tarifas<br/>y suposiciones de uso")]
+
+    UI -->|JSON| flask
+    Denji -->|rellena| UI
+    Calculos --> Datos
+    Geo --> Datos
+    LLM -.->|"solo redacta y lee boletas<br/>ningún importe"| Calculos
 ```
-┌─ Navegador ────────────────────────────────────────────────┐
-│  index.html + app.js         asistente Denji (denji.js)    │
-│  Asistente de 4 pasos        guía y rellena el formulario  │
-└───────────────────────────┬────────────────────────────────┘
-                            │  JSON
-┌───────────────────────────▼────────────────────────────────┐
-│  Flask (app.py)                                            │
-│                                                            │
-│   src/calculos.py    Motor determinista. Toda cifra sale   │
-│                      de aquí. Tarifa por país obligatoria. │
-│   src/llm.py         Acceso a Groq: timeout, validación    │
-│                      de la salida, degradación explícita.  │
-│   src/geo.py         Intermediario ante OpenStreetMap.     │
-│                                                            │
-│   data/consumo_referencia.json                             │
-│      Fuente única: potencias, tarifas y suposiciones       │
-│      de uso, cada una con su procedencia anotada.          │
-└────────────────────────────────────────────────────────────┘
+
+El modelo de lenguaje **nunca calcula**: recibe cifras ya cerradas por `calculos.py` y solo las
+redacta. La flecha punteada marca esa frontera, que es la decisión de diseño central del proyecto.
+
+### Infraestructura
+
+```mermaid
+flowchart TB
+    Cliente["Navegador<br/>localhost:HOST_PORT"]
+
+    subgraph maquina["Tu máquina"]
+        Env[".env<br/>inyectado al crear el contenedor"]
+        Fuente["código fuente<br/>montado en solo lectura"]
+
+        subgraph contenedor["Contenedor · python:3.12-slim · usuario sin privilegios"]
+            Gunicorn["gunicorn<br/>1 worker · 8 hilos · timeout 60 s"]
+            App["Flask"]
+            Tmp[("/app/uploads<br/>tmpfs, en memoria<br/>las boletas no tocan disco")]
+        end
+    end
+
+    subgraph fuera["Servicios externos"]
+        Groq["Groq<br/>narrativa y lectura de boletas"]
+        OSM["Nominatim · OpenStreetMap<br/>geocodificación inversa"]
+    end
+
+    Cliente -->|"HOST_PORT → 5000"| Gunicorn
+    Gunicorn --> App
+    App -->|"borrada al terminar"| Tmp
+    Env -.-> App
+    Fuente -.->|"recarga automática"| Gunicorn
+    App -.->|"timeout 10 s · 1 reintento<br/>degrada si falla"| Groq
+    App -.->|"1 petición/s · con caché<br/>solo si hay contacto configurado"| OSM
+```
+
+Las flechas punteadas son **opcionales**: si Groq o Nominatim no responden, o no están configurados,
+la aplicación sigue funcionando con menos prestaciones. El diagnóstico nunca depende de ellos.
+
+Un solo worker con hilos, y no varios procesos, porque el límite de tasa y la caché de
+geocodificación viven en la memoria del proceso. Escalar exige antes apuntar `RATELIMIT_STORAGE_URI`
+a Redis.
+
+### Construcción y entrega
+
+```mermaid
+flowchart LR
+    Commit["commit / PR"] --> CI["GitHub Actions"]
+    CI --> Lint["ruff"]
+    CI --> Tests["pytest"]
+    CI --> Build["docker build"]
+    Build --> Sonda["arranca y sondea /health"]
+    Build --> Secretos["verifica que no haya .env ni .zip"]
+
+    subgraph imagen["Imagen · 2 etapas"]
+        Builder["builder<br/>compila desde requirements.lock<br/>53 paquetes fijados"]
+        Runtime["runtime<br/>sin compiladores · 288 MB"]
+        Builder -->|"copia /opt/venv"| Runtime
+    end
+
+    Build --> imagen
 ```
 
 ### Dos formas de estimar el consumo
