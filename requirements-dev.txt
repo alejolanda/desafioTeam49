@@ -3,3 +3,9 @@
 ruff>=0.6.0
 pytest>=8.0.0
 pytest-cov>=5.0.0
+
+# Interfaz visual de la API. Empaqueta ~9 MB de activos de Swagger UI, asi que
+# no entra en la imagen de produccion: el contrato en docs/openapi.yaml se sirve
+# igual sin esta dependencia.
+flasgger>=0.9.7
+pyyaml>=6.0

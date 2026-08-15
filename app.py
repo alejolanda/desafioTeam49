@@ -6,7 +6,7 @@ import re
 import tempfile
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -204,6 +204,36 @@ def _resolver_tarifa(datos: dict) -> tuple[float, dict]:
         tarifa = float(ficha["tarifa_kwh_referencial"])
 
     return tarifa, ficha
+
+
+# ── Documentación de la API ───────────────────────────────────────────────────
+# Apagada por defecto: publicar el catálogo de endpoints que consumen servicios
+# de pago facilita justo el abuso que mitiga el límite de tasa.
+DOCS_HABILITADAS = os.getenv("ENABLE_API_DOCS", "0") == "1"
+RUTA_OPENAPI = os.path.join(os.path.dirname(__file__), "docs", "openapi.yaml")
+
+if DOCS_HABILITADAS:
+    @app.route("/openapi.yaml")
+    @limiter.exempt
+    def especificacion_openapi():
+        """Contrato de la API. Es la fuente única: la interfaz visual lo lee de aquí."""
+        return send_file(RUTA_OPENAPI, mimetype="application/yaml")
+
+    # La interfaz de Swagger empaqueta ~9 MB de activos, así que `flasgger` vive
+    # en requirements-dev.txt y no en la imagen de producción. El contrato en sí
+    # se sirve igual, sin depender de nada.
+    try:
+        import yaml
+        from flasgger import Swagger
+
+        with open(RUTA_OPENAPI, encoding="utf-8") as f:
+            Swagger(app, template=yaml.safe_load(f), config={
+                "headers": [],
+                "specs": [{"endpoint": "spec", "route": "/apispec.json"}],
+                "specs_route": "/apidocs/",
+            })
+    except ImportError:
+        app.logger.info("flasgger no está instalado: se sirve /openapi.yaml sin interfaz visual.")
 
 
 @app.route("/health")

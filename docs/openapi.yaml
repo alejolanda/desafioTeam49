@@ -1,0 +1,601 @@
+openapi: 3.0.3
+
+info:
+  title: VólticvS — API del asesor energético
+  version: "2.0.0"
+  description: |
+    Diagnóstico de consumo eléctrico, estimación de ahorro y recomendaciones.
+
+    **Los números son deterministas.** El cálculo lo hace `src/calculos.py`
+    (potencia × tiempo, calor específico del agua); el modelo de lenguaje
+    solo redacta la narrativa y lee las boletas. Ningún importe sale de un LLM.
+
+    **Las tarifas son referenciales.** Los valores por país provienen de
+    `data/consumo_referencia.json`, con el regulador de origen anotado en cada
+    entrada, y no están verificados en tiempo real. Envía `tarifa_kwh` con el
+    valor de tu propia boleta para obtener importes exactos.
+
+servers:
+  - url: http://localhost:5000
+    description: Desarrollo local
+
+tags:
+  - name: Cálculo
+    description: Motor determinista de consumo y ahorro
+  - name: Extracción
+    description: Lectura de datos con modelo de lenguaje
+  - name: Referencia
+    description: Catálogos y utilidades
+  - name: Operación
+    description: Sondas para orquestadores
+
+paths:
+  /health:
+    get:
+      tags: [Operación]
+      summary: Sonda de vida
+      description: |
+        No llama a Groq ni a Nominatim: la ejecuta el `HEALTHCHECK` del
+        contenedor cada 30 s y no puede gastar cuota de servicios externos.
+        Exenta del límite de tasa, porque un 429 haría que el orquestador
+        diera el contenedor por muerto.
+      responses:
+        "200":
+          description: La aplicación levantó y los datos de referencia cargaron
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  estado: { type: string, example: ok }
+                  paises: { type: integer, example: 24 }
+                  artefactos: { type: integer, example: 31 }
+                  groq_configurado:
+                    type: boolean
+                    description: Si hay clave de API. Nunca expone su valor.
+                  geocodificacion_configurada: { type: boolean }
+        "503":
+          description: Los datos de referencia no cargaron
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/paises:
+    get:
+      tags: [Referencia]
+      summary: Países soportados con su moneda y tarifa referencial
+      description: |
+        Fuente única de tarifas. Las claves que empiezan por `_` del JSON son
+        notas de documentación y no se exponen.
+      responses:
+        "200":
+          description: Diccionario indexado por código ISO 3166-1 alfa-2
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: { $ref: "#/components/schemas/Pais" }
+              example:
+                CL:
+                  nombre: Chile
+                  moneda: CLP
+                  simbolo: "$"
+                  tarifa_kwh_referencial: 150
+                  fuente: Comisión Nacional de Energía (CNE) - cne.cl
+
+  /api/ubicacion:
+    get:
+      tags: [Referencia]
+      summary: Geocodificación inversa (coordenadas → ciudad y país)
+      description: |
+        Intermedia ante Nominatim (OpenStreetMap) para poder identificar la
+        aplicación como exige su política de uso, cachear las respuestas y
+        respetar el límite de una petición por segundo.
+
+        Devuelve el **código ISO** del país, no su nombre: Nominatim lo entrega
+        traducido al idioma del lugar y no se puede emparejar de forma fiable
+        contra un catálogo en español.
+
+        Las coordenadas se redondean a 2 decimales (~1 km) antes de salir, que
+        es la precisión que corresponde a una consulta a nivel de ciudad.
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema: { type: number, minimum: -90, maximum: 90 }
+          example: -33.45
+        - name: lon
+          in: query
+          required: true
+          schema: { type: number, minimum: -180, maximum: 180 }
+          example: -70.66
+      responses:
+        "200":
+          description: Ubicación resuelta
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pais_codigo:
+                    type: string
+                    nullable: true
+                    description: Clave de `/api/paises`, o `null` si el país no está soportado.
+                    example: CL
+                  pais_nombre: { type: string, example: Chile }
+                  region: { type: string, example: Región Metropolitana }
+                  comuna: { type: string, example: Santiago }
+                  soportado:
+                    type: boolean
+                    description: Si el país está en el catálogo propio.
+        "400":
+          description: Coordenadas ausentes o fuera de rango
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/DemasiadasPeticiones" }
+        "503":
+          description: |
+            Sin `NOMINATIM_CONTACTO` configurado (no se hacen peticiones sin
+            identificar), o el servicio no respondió.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/analisis-energetico:
+    post:
+      tags: [Cálculo]
+      summary: Análisis energético del hogar
+      description: |
+        Endpoint principal, el que consume el asistente web.
+
+        **Consumo.** Si envías `consumo` se usa ese valor (dividido por 12 si
+        `flag_anual` es 1). Si no, se estima sumando los artefactos declarados.
+        Sin ninguno de los dos, `consumo_kwh` es 0 y `fuente_consumo` es
+        `sin_datos`: no se inventa una cifra de relleno.
+
+        **Ahorro.** Es la suma real, artefacto por artefacto, del consumo
+        evitable en modo de espera. Se calcula siempre —incluso cuando declaras
+        el consumo de tu boleta— porque sin desglose no hay forma de saber
+        dónde está el ahorro. Hoy solo monetiza el consumo fantasma: las
+        recomendaciones textuales sugieren ahorros mayores que aún no están
+        modelados.
+
+        **Todos los campos ausentes valen 0.** El payload se sanea entero antes
+        de calcular, así que un envío parcial nunca falla.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayloadHogar" }
+            examples:
+              consumo_declarado:
+                summary: El usuario conoce su consumo
+                value: { pais: CL, consumo: 320, flag_anual: 0 }
+              estimado_por_artefactos:
+                summary: Se estima a partir del equipamiento
+                value:
+                  pais: DO
+                  habitantes_mayores: 2
+                  habitantes_menores: 1
+                  refrigerador: 1
+                  aire_acondicionado: 1
+                  tv: 2
+                  tv_frecuencia: 21
+              con_tarifa_de_la_boleta:
+                summary: Tarifa propia, más exacta que la referencial
+                value: { pais: CL, consumo: 320, tarifa_kwh: 168.4 }
+      responses:
+        "200":
+          description: Análisis completo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RespuestaAnalisis" }
+        "400":
+          description: País no soportado
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Error"
+                  - type: object
+                    properties:
+                      paises_soportados:
+                        type: array
+                        items: { type: string }
+        "429": { $ref: "#/components/responses/DemasiadasPeticiones" }
+
+  /api/calcular:
+    post:
+      tags: [Cálculo]
+      summary: Cálculo detallado por artefacto
+      description: |
+        **Atención: el payload NO es el mismo que el de
+        `/api/analisis-energetico`.** Aquí se envían listas explícitas de
+        artefactos con sus horas de uso; allí, las respuestas de un formulario.
+        Confundirlos no produce un error: devuelve 200 con todo en cero.
+
+        Comparte motor con el otro endpoint; cambia solo la forma de la entrada.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayloadArtefactos" }
+            examples:
+              basico:
+                value:
+                  pais: CL
+                  electrodomesticos:
+                    - { clave: television, horas: 4, cantidad: 2 }
+                    - { clave: refrigerador, horas: 24 }
+                  iluminacion:
+                    - { tipo: incandescente, cantidad: 10, horas: 5 }
+                  hervidor: { tiene: true, litros_habitual: 1.7, litros_necesario: 0.25, usos_dia: 3 }
+      responses:
+        "200":
+          description: Desglose por artefacto
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RespuestaCalculo" }
+        "400":
+          description: País no soportado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/DemasiadasPeticiones" }
+
+  /api/subir-boleta:
+    post:
+      tags: [Extracción]
+      summary: Extraer consumo y tarifa de una boleta eléctrica
+      description: |
+        **PDF:** se extrae el texto con pdfplumber y se buscan las cifras con
+        expresiones regulares; solo si falta alguna se consulta al modelo.
+
+        **Imagen:** se envía a un modelo de visión.
+
+        Los números que devuelve el modelo se validan (tipo, signo y rango
+        plausible) antes de salir. Un valor que no supera la validación se
+        devuelve como `null`, no como un dato dudoso.
+
+        Los valores extraídos son una ayuda de captura: conviene contrastarlos
+        con la boleta antes de usarlos.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [boleta]
+              properties:
+                boleta:
+                  type: string
+                  format: binary
+                  description: PNG, JPG, JPEG, WEBP o PDF. Máximo 10 MB; las imágenes, 4 MB.
+                pais:
+                  type: string
+                  default: CL
+                  description: Código ISO, para saber en qué moneda leer.
+      responses:
+        "200":
+          description: Extracción realizada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  kwh_mes:
+                    type: number
+                    nullable: true
+                    description: "`null` si no se encontró o no superó la validación."
+                  tarifa_kwh: { type: number, nullable: true }
+                  moneda: { type: string, example: CLP }
+                  simbolo: { type: string, example: "$" }
+                  confianza: { type: string, enum: [alta, media, baja] }
+                  nota: { type: string }
+        "400":
+          description: Sin archivo, nombre vacío o extensión no permitida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413":
+          description: |
+            El archivo supera el máximo. Las imágenes tienen un tope menor que
+            los PDF porque se transportan en base64, que las infla un ~33%.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: PDF escaneado sin texto, o no se pudo interpretar la imagen
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/DemasiadasPeticiones" }
+        "503":
+          description: El análisis con modelo no está configurado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/interpretar-campo:
+    post:
+      tags: [Extracción]
+      summary: Mapear una descripción libre de vivienda a un valor conocido
+      description: |
+        Una llamada al modelo por texto ingresado. La respuesta se valida
+        siempre contra la lista blanca: nunca devuelve texto libre del usuario.
+
+        Sin clave de API responde `Otro`, que también pertenece a la lista, y
+        adjunta el texto original por separado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [campo, texto]
+              properties:
+                campo:
+                  type: string
+                  enum: [tipo_inmueble]
+                  description: Único campo soportado; cualquier otro da 400.
+                texto:
+                  type: string
+                  example: un galpón reconvertido en loft
+      responses:
+        "200":
+          description: Valor mapeado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valor_mapeado:
+                    type: string
+                    enum: [Casa, Casa pareada, Departamento, Casa móvil, Otro]
+                  fuente:
+                    type: string
+                    enum: [llm, fallback_vacio, fallback_sin_api, fallback_error]
+                  texto_original:
+                    type: string
+                    description: Solo cuando no hay clave configurada.
+        "400":
+          description: Campo no soportado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/DemasiadasPeticiones" }
+
+  /api/comparar:
+    post:
+      tags: [Referencia]
+      summary: Comparar artefactos de una categoría por consumo
+      description: |
+        ⚠️ **El catálogo es de ejemplo.** Los modelos son marcadores de posición
+        y todos los `precio_referencial` son `null`. La respuesta lo declara con
+        `es_catalogo_ejemplo: true`. No debe presentarse como recomendación de
+        compra hasta sustituirlo por datos reales de comercios.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [categoria, horas_uso_diario]
+              properties:
+                categoria: { type: string, enum: [aspiradora, aire_acondicionado] }
+                horas_uso_diario: { type: number, example: 2 }
+                pais: { type: string, default: CL }
+      responses:
+        "200":
+          description: Opciones ordenadas de menor a mayor consumo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  categoria: { type: string }
+                  es_catalogo_ejemplo: { type: boolean }
+                  opciones:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        nombre: { type: string }
+                        watts: { type: number }
+                        precio_referencial: { type: number, nullable: true }
+                        kwh_mes: { type: number }
+                        clp_mes: { type: number }
+        "400":
+          description: Falta un campo obligatorio o la categoría no existe
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+components:
+  responses:
+    DemasiadasPeticiones:
+      description: |
+        Límite de tasa por IP. Los endpoints que consumen servicios de pago no
+        piden credenciales, así que sin tope cualquiera podría agotar la cuota.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Mensaje apto para mostrar al usuario. Nunca incluye detalle interno.
+
+    Pais:
+      type: object
+      properties:
+        nombre: { type: string }
+        moneda: { type: string, description: Código ISO 4217 }
+        simbolo: { type: string }
+        tarifa_kwh_referencial: { type: number }
+        fuente:
+          type: string
+          description: Regulador de origen, o la marca de que el valor no está verificado.
+
+    PayloadHogar:
+      type: object
+      description: Todos los campos son opcionales; los ausentes valen 0.
+      properties:
+        pais: { type: string, default: CL }
+        estado_provincia: { type: string }
+        tipo_inmueble: { type: string, default: Casa }
+        consumo:
+          type: number
+          description: kWh del periodo. Si es 0 se estima a partir de los artefactos.
+        flag_anual:
+          type: integer
+          enum: [0, 1]
+          description: 1 si `consumo` es anual; se divide por 12.
+        tarifa_kwh:
+          type: number
+          description: Tarifa propia. Tiene prioridad sobre la referencial del país.
+        dormitorios: { type: integer }
+        ventanas: { type: integer }
+        habitantes_mayores: { type: integer }
+        habitantes_menores: { type: integer }
+        aire_acondicionado: { type: integer, description: "0 o 1" }
+        calefaccion_electrica: { type: integer, description: "0 o 1" }
+        agua_caliente_electrica: { type: integer, description: "0 o 1" }
+        secarropas_electrico: { type: integer, description: "0 o 1" }
+        horno_electrico: { type: integer, description: "0 o 1" }
+        refrigerador: { type: integer, description: Cantidad de equipos }
+        freezer: { type: integer, description: Cantidad de equipos }
+        tv: { type: integer, description: Cantidad de televisores }
+        tv_frecuencia: { type: number, description: Horas de uso POR SEMANA }
+        lavado_frecuencia: { type: integer, description: Ciclos de lavado por semana }
+
+    PayloadArtefactos:
+      type: object
+      properties:
+        pais: { type: string, default: CL }
+        tarifa_kwh: { type: number }
+        electrodomesticos:
+          type: array
+          items:
+            type: object
+            required: [clave, horas]
+            properties:
+              clave:
+                type: string
+                description: Clave de `data/consumo_referencia.json`. Una desconocida se ignora.
+              horas: { type: number, description: Horas de uso activo al día }
+              cantidad: { type: integer, default: 1 }
+              queda_conectado:
+                type: boolean
+                default: true
+                description: Si permanece enchufado cuando no se usa (consumo fantasma).
+              veces_semana: { type: number, default: 7 }
+        iluminacion:
+          type: array
+          items:
+            type: object
+            required: [tipo, cantidad, horas]
+            properties:
+              tipo: { type: string, example: incandescente }
+              cantidad: { type: integer }
+              horas: { type: number }
+        hervidor:
+          type: object
+          properties:
+            tiene: { type: boolean }
+            litros_habitual: { type: number }
+            litros_necesario: { type: number }
+            usos_dia: { type: integer, default: 1 }
+        personalizados:
+          type: array
+          description: Artefactos fuera del catálogo, descritos por su potencia.
+          items:
+            type: object
+            required: [watts, horas]
+            properties:
+              nombre: { type: string }
+              watts: { type: number }
+              horas: { type: number }
+              cantidad: { type: integer, default: 1 }
+
+    RespuestaAnalisis:
+      type: object
+      properties:
+        status: { type: string, example: success }
+        consumo_kwh: { type: number, example: 326.4 }
+        costo_estimado: { type: number, example: 48960 }
+        ahorro_estimado:
+          type: number
+          description: Suma real del ahorro por artefacto, no un porcentaje fijo.
+        simbolo_moneda: { type: string, example: "$" }
+        moneda: { type: string, example: CLP }
+        tarifa_aplicada: { type: number }
+        categoria: { type: string, enum: [Eficiente, Moderado, Ineficiente] }
+        fuente_consumo: { type: string, enum: [declarado, estimado, sin_datos] }
+        fuente_ahorro: { type: string, enum: [desglose_artefactos, sin_artefactos_declarados] }
+        desglose:
+          type: object
+          additionalProperties: { type: number }
+          description: kWh mensuales por concepto.
+        recomendaciones:
+          type: array
+          items: { type: string }
+        narrativa: { type: string }
+        narrativa_fuente:
+          type: string
+          enum: [llm, respaldo_sin_api_key, respaldo_error]
+          description: Distingue el texto del modelo del de respaldo.
+        costo_estimado_mensual:
+          type: number
+          deprecated: true
+          description: Alias de `costo_estimado`. Se retira cuando el frontend deje de leerlo.
+        total_kwh_mes:
+          type: number
+          deprecated: true
+          description: Alias de `consumo_kwh`.
+        total_clp_mes:
+          type: number
+          deprecated: true
+          description: Alias de `costo_estimado`. El nombre dice CLP pero el importe va en la moneda del país.
+        ahorro_potencial_clp_mes:
+          type: number
+          deprecated: true
+          description: Alias de `ahorro_estimado`.
+
+    RespuestaCalculo:
+      type: object
+      properties:
+        total_kwh_mes: { type: number }
+        total_clp_mes: { type: number }
+        ahorro_potencial_clp_mes: { type: number }
+        moneda: { type: string }
+        simbolo_moneda: { type: string }
+        tarifa_aplicada: { type: number }
+        narrativa: { type: string }
+        narrativa_fuente: { type: string }
+        recomendaciones:
+          type: array
+          items: { type: string }
+        proyeccion:
+          type: object
+          properties:
+            ahorro_1_mes: { type: number }
+            ahorro_6_meses: { type: number }
+            ahorro_1_anio: { type: number }
+            ahorro_5_anios: { type: number }
+        desglose:
+          type: array
+          items:
+            type: object
+            properties:
+              nombre: { type: string }
+              kwh_mes_actual: { type: number }
+              kwh_mes_optimo: { type: number }
+              ahorro_kwh_mes: { type: number }
+              ahorro_clp_mes:
+                type: number
+                description: El nombre dice CLP por compatibilidad; el importe va en la moneda del país.

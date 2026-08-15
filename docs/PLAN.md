@@ -74,7 +74,13 @@ Las seis se resolvieron por la opción recomendada.
 | 6.7 `uploads/` como tmpfs | ✅ Hecha |
 | 6.8 `docker-compose.yml` | ✅ Hecha |
 | 6.9 Build de la imagen en CI | ✅ Hecha — construye, arranca y sondea |
-| 6.10 Devcontainer alineado a 3.12 | ✅ Hecha — el README queda para la Fase 7 |
+| 6.10 Devcontainer alineado a 3.12 | ✅ Hecha |
+| 7.1 README — corregir lo falso | ✅ Hecha |
+| 7.2 README — añadir lo que falta | ✅ Hecha |
+| 7.3 Swagger / OpenAPI | ✅ Hecha — `docs/openapi.yaml` + test de deriva |
+| 7.4 `.env.example` | ✅ Hecha — 19 variables documentadas |
+| 7.5 `UI_DESIGN.md` | ✅ Hecha |
+| 7.6 Registrar las decisiones | ✅ Hecha — `docs/DECISIONES.md` |
 
 > **Sobre 0.1 y 1.2.** El trabajo se aisló en la rama `vllanten` para no forzar un re-clone al equipo.
 > Eso resuelve la 1.1 pero **no** la 1.2: los zips viven en `e4cf47e`, ancestro de `main` y de

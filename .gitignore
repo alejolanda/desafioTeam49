@@ -3,8 +3,13 @@ venv/
 .venv/
 env/
 
-# Archivos de configuración con claves secretas
+# Archivos de configuración con claves secretas.
+# Se ignora cualquier variante (.env.local, .env.bak, .env.produccion…) porque
+# el patrón exacto `.env` no cubría copias de seguridad, que llevan la clave
+# igual. Solo se versiona la plantilla.
 .env
+.env.*
+!.env.example
 
 # Archivos temporales de Python y sistema
 __pycache__/

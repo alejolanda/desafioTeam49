@@ -1,8 +1,12 @@
 services:
   app:
     build: .
+    # Puerto del host separado del puerto interno: en macOS el 5000 lo ocupa el
+    # receptor de AirPlay (ControlCenter), asi que hay que poder remapear sin
+    # tocar el puerto en el que escucha la aplicacion.
+    #   HOST_PORT=5001 docker compose up
     ports:
-      - "${PORT:-5000}:${PORT:-5000}"
+      - "${HOST_PORT:-5000}:${PORT:-5000}"
 
     # La configuracion se inyecta en ejecucion; nunca se hornea en la imagen.
     # El .env no entra al contexto de build (ver .dockerignore).
