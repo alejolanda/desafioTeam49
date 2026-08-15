@@ -246,10 +246,17 @@
     reconocimientoActivo = rec;
     rec.lang = IDIOMAS_VOZ[idiomaVozIdx] || 'es-ES';
     rec.continuous = false;
-    rec.interimResults = false;
+    // Resultados provisionales ACTIVADOS a propósito. Una respuesta de una sola
+    // palabra corta —"uno", "cero", "dos"— dura unos 300 ms: no siempre supera
+    // el umbral de enunciado de Chrome, que entonces termina sin entregar
+    // ningún resultado final. Los provisionales sí llegan, así que se guarda el
+    // último y se usa si la escucha acaba sin final. Por eso "tiene uno"
+    // funcionaba y "uno" no.
+    rec.interimResults = true;
     rec.maxAlternatives = 3;   // alternativas: la primera no siempre es la mejor
 
     let resuelto = false;
+    let ultimoProvisional = '';
     const cortar = setTimeout(() => {
       traza('tiempo agotado a los 12 s sin resultado');
       try { rec.abort(); } catch(_){}
@@ -261,14 +268,27 @@
     rec.onspeechstart = () => traza('se detectó voz');
     rec.onspeechend = () => traza('la voz terminó');
 
+    // Con interimResults activo, onresult se dispara varias veces: primero con
+    // hipótesis provisionales y luego -no siempre- con la definitiva.
     rec.onresult = (e) => {
-      resuelto = true;
-      const alternativas = Array.from(e.results[0]).map(a => a.transcript);
-      const crudo = e.results[0][0].transcript;
-      const limpio = normalizarVoz(crudo);
-      traza('RESULTADO', { crudo: crudo, normalizado: limpio, alternativas: alternativas });
-      window.denjiUltimaTranscripcion = { crudo: crudo, normalizado: limpio, alternativas: alternativas };
-      onTranscript(limpio, alternativas.map(normalizarVoz));
+      for(let i = e.resultIndex; i < e.results.length; i++){
+        const resultado = e.results[i];
+        const crudo = resultado[0].transcript;
+
+        if(!resultado.isFinal){
+          ultimoProvisional = crudo;
+          traza('provisional', crudo);
+          continue;
+        }
+
+        resuelto = true;
+        const alternativas = Array.from(resultado).map(a => a.transcript);
+        const limpio = normalizarVoz(crudo);
+        traza('RESULTADO final', { crudo: crudo, normalizado: limpio, alternativas: alternativas });
+        window.denjiUltimaTranscripcion = { crudo: crudo, normalizado: limpio, alternativas: alternativas };
+        onTranscript(limpio, alternativas.map(normalizarVoz));
+        return;
+      }
     };
     rec.onerror = (e) => {
       resuelto = true;
@@ -289,8 +309,20 @@
     // para siempre.
     rec.onend = () => {
       clearTimeout(cortar);
-      traza('fin de la escucha', { hubo_resultado: resuelto });
       if(reconocimientoActivo === rec) reconocimientoActivo = null;
+
+      // Rescate de la respuesta corta: se oyó algo pero nunca se finalizó.
+      if(!resuelto && ultimoProvisional.trim()){
+        const limpio = normalizarVoz(ultimoProvisional);
+        traza('RESULTADO recuperado del provisional', { crudo: ultimoProvisional, normalizado: limpio });
+        window.denjiUltimaTranscripcion = { crudo: ultimoProvisional, normalizado: limpio, alternativas: [] };
+        resuelto = true;
+        if(onFin) onFin();
+        onTranscript(limpio, [limpio]);
+        return;
+      }
+
+      traza('fin de la escucha', { hubo_resultado: resuelto });
       if(onFin) onFin();
       if(!resuelto && onError) onError('no-speech');
     };
