@@ -271,6 +271,7 @@ desafioTeam49/
 ├── docs/
 │   ├── openapi.yaml            Contrato de la API
 │   ├── PLAN.md                 Plan de la auditoría de código
+│   ├── PLAN-HACKATHON.md       Qué falta para cumplir las bases de EnergiAI
 │   └── DECISIONES.md           Decisiones técnicas y su porqué
 ├── Dockerfile                  Multi-stage, sin privilegios
 ├── docker-compose.yml
