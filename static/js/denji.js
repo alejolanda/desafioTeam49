@@ -228,6 +228,14 @@
     reconocimientoActivo = null;
   }
 
+  // Traza de voz. Va siempre a la consola porque el reconocimiento falla en
+  // silencio con demasiada facilidad: sin esto, "no funciona" es indistinguible
+  // de "no se entendió", de "el micrófono no arrancó" y de "el navegador lo
+  // bloqueó". El prefijo permite filtrar en las herramientas del navegador.
+  function traza(evento, detalle){
+    console.log('[denji:voz] ' + evento, detalle !== undefined ? detalle : '');
+  }
+
   function escucharUnaVez(onTranscript, onError, onFin){
     // El asistente habla por los altavoces: si sigue hablando cuando se abre el
     // micrófono, se escucha a sí mismo y el resultado es basura.
@@ -239,17 +247,36 @@
     rec.lang = IDIOMAS_VOZ[idiomaVozIdx] || 'es-ES';
     rec.continuous = false;
     rec.interimResults = false;
-    rec.maxAlternatives = 1;
+    rec.maxAlternatives = 3;   // alternativas: la primera no siempre es la mejor
 
     let resuelto = false;
-    const cortar = setTimeout(() => { try { rec.abort(); } catch(_){} }, 12000);
+    const cortar = setTimeout(() => {
+      traza('tiempo agotado a los 12 s sin resultado');
+      try { rec.abort(); } catch(_){}
+    }, 12000);
 
-    rec.onresult = (e) => { resuelto = true; onTranscript(normalizarVoz(e.results[0][0].transcript)); };
+    traza('iniciando', { idioma: rec.lang });
+    rec.onstart = () => traza('el reconocedor arrancó');
+    rec.onaudiostart = () => traza('capturando audio del micrófono');
+    rec.onspeechstart = () => traza('se detectó voz');
+    rec.onspeechend = () => traza('la voz terminó');
+
+    rec.onresult = (e) => {
+      resuelto = true;
+      const alternativas = Array.from(e.results[0]).map(a => a.transcript);
+      const crudo = e.results[0][0].transcript;
+      const limpio = normalizarVoz(crudo);
+      traza('RESULTADO', { crudo: crudo, normalizado: limpio, alternativas: alternativas });
+      window.denjiUltimaTranscripcion = { crudo: crudo, normalizado: limpio, alternativas: alternativas };
+      onTranscript(limpio, alternativas.map(normalizarVoz));
+    };
     rec.onerror = (e) => {
       resuelto = true;
+      traza('ERROR', { codigo: e.error, mensaje: e.message || '(sin mensaje)', idioma: rec.lang });
       // Con un idioma no soportado se reintenta con el siguiente de la lista.
       if(e.error === 'language-not-supported' && idiomaVozIdx < IDIOMAS_VOZ.length - 1){
         idiomaVozIdx++;
+        traza('reintentando con otro idioma', IDIOMAS_VOZ[idiomaVozIdx]);
         clearTimeout(cortar);
         escucharUnaVez(onTranscript, onError, onFin);
         return;
@@ -262,6 +289,7 @@
     // para siempre.
     rec.onend = () => {
       clearTimeout(cortar);
+      traza('fin de la escucha', { hubo_resultado: resuelto });
       if(reconocimientoActivo === rec) reconocimientoActivo = null;
       if(onFin) onFin();
       if(!resuelto && onError) onError('no-speech');
@@ -273,11 +301,44 @@
       // start() lanza InvalidStateError de forma SÍNCRONA si ya había un
       // reconocimiento en curso. Sin capturarlo, la excepción escapaba del
       // onclick y el botón quedaba colgado.
+      traza('start() lanzó excepción', error && error.name);
       clearTimeout(cortar);
       if(onFin) onFin();
       if(onError) onError('aborted');
     }
   }
+
+  /**
+   * Diagnóstico para pegar en la consola del navegador: `denjiDiagnostico()`.
+   * Reúne de una vez todo lo que hace falta para saber por qué falla la voz.
+   */
+  window.denjiDiagnostico = function(){
+    const informe = {
+      navegador: navigator.userAgent,
+      idioma_navegador: navigator.language,
+      origen: location.origin,
+      contexto_seguro: window.isSecureContext,
+      api_reconocimiento: !!SpeechRecognitionAPI,
+      api_sintesis: 'speechSynthesis' in window,
+      idioma_en_uso: IDIOMAS_VOZ[idiomaVozIdx],
+      ultima_transcripcion: window.denjiUltimaTranscripcion || '(todavía ninguna)'
+    };
+    console.table(informe);
+
+    if(navigator.permissions && navigator.permissions.query){
+      navigator.permissions.query({ name: 'microphone' })
+        .then(p => console.log('[denji:voz] permiso del micrófono:', p.state))
+        .catch(() => console.log('[denji:voz] el navegador no informa del permiso del micrófono'));
+    }
+
+    if(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices){
+      navigator.mediaDevices.enumerateDevices()
+        .then(ds => console.log('[denji:voz] micrófonos detectados:',
+          ds.filter(d => d.kind === 'audioinput').length))
+        .catch(() => {});
+    }
+    return informe;
+  };
 
   function crearBotonMic(onTranscript){
     if(!SpeechRecognitionAPI){ return null; } // el navegador no soporta la API, no hay nada que mostrar
@@ -323,16 +384,46 @@
   }
 
   const NUMEROS_ES = { cero:0, un:1, uno:1, una:1, dos:2, tres:3, cuatro:4, cinco:5, seis:6, siete:7, ocho:8, nueve:9,
-    diez:10, once:11, doce:12, trece:13, catorce:14, quince:15, dieciseis:16, diecisiete:17, dieciocho:18, diecinueve:19, veinte:20 };
+    diez:10, once:11, doce:12, trece:13, catorce:14, quince:15, dieciseis:16, diecisiete:17, dieciocho:18, diecinueve:19,
+    veinte:20, veintiuno:21, veintiun:21, veintidos:22, veintitres:23, veinticuatro:24, veinticinco:25,
+    veintiseis:26, veintisiete:27, veintiocho:28, veintinueve:29,
+    treinta:30, cuarenta:40, cincuenta:50, sesenta:60, setenta:70, ochenta:80, noventa:90, cien:100, ciento:100,
+    // Respuestas que en la práctica son un número
+    ninguno:0, ninguna:0, nada:0, cero_:0 };
+
+  // Decenas que admiten "y algo": treinta y cinco, cuarenta y dos…
+  const DECENAS = { treinta:30, cuarenta:40, cincuenta:50, sesenta:60, setenta:70, ochenta:80, noventa:90 };
 
   function parseNumeroHablado(texto){
-    const limpio = texto.trim();
+    const limpio = (texto || '').trim();
+    if(!limpio) return null;
+
+    // Dígitos tal cual: es lo que devuelve Chrome la mayoría de las veces.
     if(/^[0-9]+$/.test(limpio)) return parseInt(limpio, 10);
     if(NUMEROS_ES.hasOwnProperty(limpio)) return NUMEROS_ES[limpio];
+
     const palabras = limpio.split(/\s+/);
+
+    // Compuestos del tipo "treinta y cinco". Antes solo se reconocían las
+    // palabras sueltas hasta veinte, así que cualquier cantidad mayor fallaba.
+    for(let i = 0; i < palabras.length; i++){
+      const decena = DECENAS[palabras[i]];
+      if(decena === undefined) continue;
+      if(palabras[i + 1] === 'y' && NUMEROS_ES[palabras[i + 2]] !== undefined){
+        const unidad = NUMEROS_ES[palabras[i + 2]];
+        if(unidad < 10) return decena + unidad;
+      }
+      return decena;
+    }
+
+    // Cualquier cifra suelta dentro de la frase: "tengo 3 refrigeradores".
+    for(const palabra of palabras){
+      if(/^[0-9]+$/.test(palabra)) return parseInt(palabra, 10);
+    }
+
+    // Última palabra conocida, por si la frase lleva relleno delante.
     for(let i = palabras.length - 1; i >= 0; i--){
       if(NUMEROS_ES.hasOwnProperty(palabras[i])) return NUMEROS_ES[palabras[i]];
-      if(/^[0-9]+$/.test(palabras[i])) return parseInt(palabras[i], 10);
     }
     return null;
   }
@@ -753,8 +844,16 @@
       document.getElementById('denji-num-mas').onclick = () => { valor++; valorEl.textContent=valor; };
       document.getElementById('denji-num-submit').onclick = () => guardarYAvanzar(step.guarda_en, valor);
       document.getElementById('denji-num-omitir').onclick = () => preguntarSiOmitir(step);
-      const micNum = crearBotonMic((transcript) => {
-        const n = parseNumeroHablado(transcript);
+      const micNum = crearBotonMic((transcript, alternativas) => {
+        // Si la primera interpretación no da un número, se prueban las demás:
+        // el reconocedor suele acertar en la segunda o la tercera.
+        let n = parseNumeroHablado(transcript);
+        if(n === null && alternativas){
+          for(const alt of alternativas){
+            n = parseNumeroHablado(alt);
+            if(n !== null){ traza('número obtenido de una alternativa', alt); break; }
+          }
+        }
         if(n === null){
           statusEl.textContent = 'Denji: entendí "' + transcript + '", que no es un número; usa los botones';
           return;
